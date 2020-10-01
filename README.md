@@ -30,7 +30,7 @@ Please see the Wiki page [Installing dependencies][5] for further details.
 
 Assuming all dependencies are installed, either:
 
-1. Download the NewTargets package directly from the repository home page and unzip it. Note that the `mega353.fasta` file is provided as a `.zip` file, and will need to be unzipped separately. 
+1. Download the NewTargets package directly from the repository home page and unzip it. Note that the `mega353.fasta` file in the unzipped package is also provided as a `.zip` file, and will need to be unzipped separately. 
 2. Clone the repository using the command `git clone https://github.com/chrisjackson-pellicle/NewTargets.git`. Unzip the `mega353.zip` file.
 
 

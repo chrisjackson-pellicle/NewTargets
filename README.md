@@ -2,6 +2,12 @@
 
 ## Description
 
+**Data files**
+- `mega353.fasta` A target file for use with target enrichment data that has been captured using the Angiosperms353 bait kit. 
+- `filtering_options.csv` A .csv file listing teh option available for filtering the `mega353.fasta` file. 
+
+
+
 ## Installation
 
 
@@ -13,9 +19,12 @@
 - Python 3.7 or higher
 - [BioPython][4] 1.76 or higher
 
-**USAGE:**
+**Quick usage:**
 ```
-Code Block
+python filter_mega353.py [-h] [-filtered_target_file FILTERED_TARGET_FILE]
+                         [-report_filename REPORT_FILENAME]
+                         [-list_filtering_options]
+                         mega353_file select_file
 ```
 
 ***
@@ -29,7 +38,7 @@ Code Block
 - [MAFFT][3] 7.407 or higher
 - [BioPython][4] 1.76 or higher
 
-**USAGE:**
+**Quick usage:**
 ```
 Code Block
 ```

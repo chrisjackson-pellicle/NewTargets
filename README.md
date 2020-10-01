@@ -15,7 +15,7 @@ Assuming all dependencies are installed, either:
 1. Download and unzip the NewTargets package directly from the repository home page. Note that the `mega353.fasta` file is provided as a `.zip` file, and will need to be unzipped separately. 
 2. Clone the repository using the command `git clone https://github.com/chrisjackson-pellicle/NewTargets.git`. Unzip the `mega353.zip` file.
 
-Please see \wiki-link\ for details on installing dependencies.
+Please see the Wiki page [Installing dependencies][5] for further details.
 
 ## Scripts
 
@@ -53,6 +53,7 @@ Code Block
 [2]: http://hmmer.org/ "Link to HMMER download page"
 [3]: https://mafft.cbrc.jp/alignment/software/ "Link to MAFFT download page"
 [4]: https://biopython.org/wiki/Download "Link to BioPython download page"
+[5]: https://github.com/chrisjackson-pellicle/NewTargets/wiki/Installing-dependencies/ "Link to Installing dependencies Wiki page"
 
 
 

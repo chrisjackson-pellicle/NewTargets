@@ -6,7 +6,7 @@ Bioinformatic sequence recovery for universal sequence capture bait kits can be 
 
 **Data files**
 - `mega353.fasta` A target file for use with target enrichment datasets captured using the Angiosperms353 bait kit. 
-- `filtering_options.csv` A comma-separated values file listing the options available for filtering of the `mega353.fasta` file. This reference file can also be produced by the `filter_mega353.py` script (see below) 
+- `filtering_options.csv` A comma-separated values file listing the options available for filtering the `mega353.fasta` file. This reference file can also be produced by the `filter_mega353.py` script (see below).
 
 **Scripts**
 - `filter_mega353.py` A script to filter the `mega353.fasta` target file.
@@ -46,9 +46,8 @@ python filter_mega353.py [-h] [-filtered_target_file FILTERED_TARGET_FILE]
                          mega353_file select_file
 ```
 
-***
-
 Please see the Wiki page for [filter_mega353][7] for further details.
+***
 
 ### BYO_transcriptomes.py
 

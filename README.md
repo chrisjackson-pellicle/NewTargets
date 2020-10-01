@@ -2,7 +2,7 @@
 
 ## Description
 
-Bioinformatic sequence recovery for universal sequence capture bait kits can be substantially improved by appropriate tailoring of target files to the group under study. To enable the best possible locus recovery from Angiosperms353 capture data, we have developed an expanded target file (`mega353.fasta`) incorporating sequences from over 500 transcriptomes from the 1KP (REF) project. To ensure computational efficiency, we provide the script `filter_mega353.py` to tailor the file to the needs of a specific dataset.  `filter_mega353.py` can be used to subsample the `mega353.fasta` file based on user-selected taxa or taxon groups, as defined by unique 1KP transcriptome codes, families, orders, species, or broader groups (e.g. basal eudicots). In addition, we  provide the script `BYO_transcriptomes.py`, which can be used to incorporate any transcriptome dataset in to any target file. 
+Bioinformatic sequence recovery for universal sequence capture bait kits can be substantially improved by appropriate tailoring of target files to the group under study. To enable the best possible locus recovery from Angiosperms353 capture data, we have developed an expanded target file (`mega353.fasta`) incorporating sequences from over 500 transcriptomes from the [1KP][9] project. To ensure computational efficiency, we provide the script `filter_mega353.py` to tailor the file to the needs of a specific dataset.  `filter_mega353.py` can be used to subsample the `mega353.fasta` file based on user-selected taxa or taxon groups, as defined by unique 1KP transcriptome codes, families, orders, species, or broader groups (e.g. basal eudicots). In addition, we  provide the script `BYO_transcriptomes.py`, which can be used to incorporate any transcriptome dataset in to any target file. These tailored and customised target files can be used directly in target-capture pipelines such as [HybPiper][8]. 
 
 **Data files**
 - `mega353.fasta` A target file for use with target enrichment datasets captured using the Angiosperms353 bait kit. 
@@ -66,6 +66,8 @@ Please see the Wiki page for [BYO_transcriptomes][6] for further details.
 [5]: https://github.com/chrisjackson-pellicle/NewTargets/wiki/Installing-dependencies/ "Link to Installing dependencies Wiki page"
 [6]: https://github.com/chrisjackson-pellicle/NewTargets/wiki/Adding-transcriptome-sequences-to-a-target-file-with-BYO_transcriptomes.py/ "Link to BYO_transcriptomes Wiki page"
 [7]: https://github.com/chrisjackson-pellicle/NewTargets/wiki/Filtering-the-mega353.fasta-target-file/ "Link to filter_mega353 Wiki page"
+[8]: https://github.com/mossmatters/HybPiper/ "Link to the HybPiper GitHub repository"
+[9]: https://sites.google.com/a/ualberta.ca/onekp/ "Link to the 1000 Plants website"
 
 
 

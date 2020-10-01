@@ -2,6 +2,8 @@
 
 ## Description
 
+Here we provide...
+
 **Data files**
 - `mega353.fasta` A target file for use with target enrichment data that has been captured using the Angiosperms353 bait kit. 
 - `filtering_options.csv` A `.csv` file listing the options available for filtering the `mega353.fasta` file. 

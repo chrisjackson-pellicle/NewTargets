@@ -1,24 +1,38 @@
 # NewTargets
 
+## Description
+
+## Installation
+
+
+## Scripts
+
 ### filter_mega353.py
 
-*Requirements:*
+*Dependencies:*
 - Python 3.7 or higher
 - [BioPython][4] 1.76 or higher
 
+**USAGE:**
+```
+Code Block
+```
 
-
-
+***
 
 ### BYO_transcriptomes.py
 
-*Requirements:*
+*Dependencies:*
 - Python 3.7 or higher
 - [EXONERATE][1] 2.4.0
 - [HMMER][2] 3.2.1 or higher
 - [MAFFT][3] 7.407 or higher
 - [BioPython][4] 1.76 or higher
 
+**USAGE:**
+```
+Code Block
+```
 
 [1]: https://www.ebi.ac.uk/about/vertebrate-genomics/software/exonerate/ "Link to EXONERATE download page"
 [2]: http://hmmer.org/ "Link to HMMER download page"

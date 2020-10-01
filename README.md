@@ -10,6 +10,7 @@
 
 ## Installation
 
+Assuming all dependencies are installed, simply...
 
 ## Scripts
 

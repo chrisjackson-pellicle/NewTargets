@@ -2,12 +2,15 @@
 
 ## Description
 
-Bioinformatic sequence recovery for universal sequence capture bait kits can be substantially improved by appropriate tailoring of target files to the group under study. To enable the best possible locus recovery from Angiosperms353 capture data, we have developed an expanded target file (`mega353.fasta`) incorporating sequences from over 500 transcriptomes from the 1KP (REF) project. To ensure computational efficiency, we provide the script `filter_mega353.py` to tailor the file to the needs of a specific dataset.  `filter_mega353.py` can be used to subsample the `mega353.fasta` file based on user-selected taxa or taxon groups, as defined by unique 1KP transcriptome codes, families, orders, species, or broader groups (e.g. basal eudicots). In addition, we  provide the script `BYO_transcriptomes.py`, which can be used to incorporate other non-1KP transcriptome datasets into any target file. 
+Bioinformatic sequence recovery for universal sequence capture bait kits can be substantially improved by appropriate tailoring of target files to the group under study. To enable the best possible locus recovery from Angiosperms353 capture data, we have developed an expanded target file (`mega353.fasta`) incorporating sequences from over 500 transcriptomes from the 1KP (REF) project. To ensure computational efficiency, we provide the script `filter_mega353.py` to tailor the file to the needs of a specific dataset.  `filter_mega353.py` can be used to subsample the `mega353.fasta` file based on user-selected taxa or taxon groups, as defined by unique 1KP transcriptome codes, families, orders, species, or broader groups (e.g. basal eudicots). In addition, we  provide the script `BYO_transcriptomes.py`, which can be used to incorporate any transcriptome dataset in to any target file. 
 
 **Data files**
 - `mega353.fasta` A target file for use with target enrichment datasets captured using the Angiosperms353 bait kit. 
 - `filtering_options.csv` A comma-separated values file listing the options available for filtering of the `mega353.fasta` file. This reference file can also be produced by the `filter_mega353.py` script (see below) 
 
+**Scripts**
+- `filter_mega353.py` A script to filter the `mega353.fasta` target file.
+- `BYO_transcriptomes.py` A script to add  sequences from any transcriptome dataset to any target file.
 ## Dependencies
 
 Dependencies for `filter_mega353.py`

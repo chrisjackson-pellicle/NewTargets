@@ -6,24 +6,32 @@
 - `mega353.fasta` A target file for use with target enrichment data that has been captured using the Angiosperms353 bait kit. 
 - `filtering_options.csv` A `.csv` file listing the options available for filtering the `mega353.fasta` file. 
 
+## Dependencies
 
+Dependencies for `filter_mega353.py`
+- Python 3.7 or higher
+- [BioPython][4] 1.76 or higher
+
+Dependencies for `BYO_transcriptomes.py`
+- Python 3.7 or higher
+- [EXONERATE][1] 2.4.0
+- [HMMER][2] 3.2.1 or higher
+- [MAFFT][3] 7.407 or higher
+- [BioPython][4] 1.76 or higher
+
+Please see the Wiki page [Installing dependencies][5] for further details.
 
 ## Installation
 
 Assuming all dependencies are installed, either:
 
-1. Download and unzip the NewTargets package directly from the repository home page. Note that the `mega353.fasta` file is provided as a `.zip` file, and will need to be unzipped separately. 
+1. Download the NewTargets package directly from the repository home page and unzip it. Note that the `mega353.fasta` file is provided as a `.zip` file, and will need to be unzipped separately. 
 2. Clone the repository using the command `git clone https://github.com/chrisjackson-pellicle/NewTargets.git`. Unzip the `mega353.zip` file.
 
-Please see the Wiki page [Installing dependencies][5] for further details.
 
 ## Scripts
 
 ### filter_mega353.py
-
-*Dependencies:*
-- Python 3.7 or higher
-- [BioPython][4] 1.76 or higher
 
 **Quick usage:**
 ```
@@ -38,13 +46,6 @@ python filter_mega353.py [-h] [-filtered_target_file FILTERED_TARGET_FILE]
 Please see the Wiki page for [filter_mega353][7] for further details.
 
 ### BYO_transcriptomes.py
-
-*Dependencies:*
-- Python 3.7 or higher
-- [EXONERATE][1] 2.4.0
-- [HMMER][2] 3.2.1 or higher
-- [MAFFT][3] 7.407 or higher
-- [BioPython][4] 1.76 or higher
 
 **Quick usage:**
 ```

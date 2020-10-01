@@ -49,11 +49,14 @@ python filter_mega353.py [-h] [-filtered_target_file FILTERED_TARGET_FILE]
 Code Block
 ```
 
+Please see the Wiki page for [BYO_transcriptomes][6] for further details.
+
 [1]: https://www.ebi.ac.uk/about/vertebrate-genomics/software/exonerate/ "Link to EXONERATE download page"
 [2]: http://hmmer.org/ "Link to HMMER download page"
 [3]: https://mafft.cbrc.jp/alignment/software/ "Link to MAFFT download page"
 [4]: https://biopython.org/wiki/Download "Link to BioPython download page"
 [5]: https://github.com/chrisjackson-pellicle/NewTargets/wiki/Installing-dependencies/ "Link to Installing dependencies Wiki page"
+[6]: https://github.com/chrisjackson-pellicle/NewTargets/wiki/Adding-transcriptome-sequences-to-a-target-file-with-BYO_transcriptomes.py/ "Link to BYO_transcriptomes Wiki page"
 
 
 

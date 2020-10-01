@@ -35,6 +35,8 @@ python filter_mega353.py [-h] [-filtered_target_file FILTERED_TARGET_FILE]
 
 ***
 
+Please see the Wiki page for [filter_mega353][7] for further details.
+
 ### BYO_transcriptomes.py
 
 *Dependencies:*
@@ -57,6 +59,7 @@ Please see the Wiki page for [BYO_transcriptomes][6] for further details.
 [4]: https://biopython.org/wiki/Download "Link to BioPython download page"
 [5]: https://github.com/chrisjackson-pellicle/NewTargets/wiki/Installing-dependencies/ "Link to Installing dependencies Wiki page"
 [6]: https://github.com/chrisjackson-pellicle/NewTargets/wiki/Adding-transcriptome-sequences-to-a-target-file-with-BYO_transcriptomes.py/ "Link to BYO_transcriptomes Wiki page"
+[7]: https://github.com/chrisjackson-pellicle/NewTargets/wiki/Filtering-the-mega353.fasta-target-file/ "Link to filter_mega353 Wiki page"
 
 
 

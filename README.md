@@ -4,7 +4,7 @@
 
 **Data files**
 - `mega353.fasta` A target file for use with target enrichment data that has been captured using the Angiosperms353 bait kit. 
-- `filtering_options.csv` A .csv file listing the options available for filtering the `mega353.fasta` file. 
+- `filtering_options.csv` A `.csv` file listing the options available for filtering the `mega353.fasta` file. 
 
 
 
@@ -12,7 +12,7 @@
 
 Assuming all dependencies are installed, either:
 
-1. Download and unzip the NewTargets package directly from the repository home page. Note that the `mega353.fasta` file is provided as a .zip file, and will need to be unzipped separately. 
+1. Download and unzip the NewTargets package directly from the repository home page. Note that the `mega353.fasta` file is provided as a `.zip` file, and will need to be unzipped separately. 
 2. Clone the repository using the command `git clone https://github.com/chrisjackson-pellicle/NewTargets.git`. Unzip the `mega353.zip` file.
 
 Please see \wiki-link\ for details on installing dependencies.

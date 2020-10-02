@@ -45,7 +45,7 @@ Assuming all dependencies are installed, either:
 
 *Output*:
 - `filtered_target_file`. The filtered target file containing the default Angiosperms353 sequences and any additional sequences corresponding to IDs in the `select_file`.
-- `report_file`. A report file in `.csv` format, listing samples with seuqences retained in the filtered target file (excluding default Angiosperms353 samples).
+- `report_file`. A report file in `.csv` format, listing samples with sequences retained in the filtered target file (excluding default Angiosperms353 samples).
 
 **Quick usage:**
 ```

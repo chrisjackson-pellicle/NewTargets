@@ -65,7 +65,7 @@ To generate the `filtering_options.csv` file:
 Please see the Wiki page for [filter_mega353][7] for further details.
 ***
 
-### BYO_transcriptomes.py
+### BYO_transcriptome.py
 
 *Input*:
 - `target_file`. A target file containing protein-coding nucleotide sequences in fasta format.

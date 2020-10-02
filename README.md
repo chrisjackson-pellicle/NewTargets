@@ -50,6 +50,10 @@ Example command line:
 
 `python filter_mega353.py mega353.fasta select_asparagales.txt -filtered_target_file asparagales_targetfile.fasta -report_filename asparagales_report.csv`
 
+To generate the `filtering_options.csv` file:
+
+`python filter_mega353.py -list_filtering_options`
+
 Please see the Wiki page for [filter_mega353][7] for further details.
 ***
 

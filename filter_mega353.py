@@ -1287,9 +1287,10 @@ def parse_select_file(control_df, select_file):
     with open(select_file) as select:
         lines = select.readlines()
     for line in lines:
-        for ind in control_df.index:
-            if line.strip() in set(control_df.iloc[ind, 0:5]):
-                select_list.add(control_df.iloc[ind, 0])
+        if not str(line).startswith('['):
+            for ind in control_df.index:
+                if line.strip() in set(control_df.iloc[ind, 0:5]):
+                    select_list.add(control_df.iloc[ind, 0])
     three5three_list = [name for name in control_df.loc[:, 'three5three_list']]
     return select_list, three5three_list
 
@@ -1361,16 +1362,23 @@ def main():
         write_filtering_options_dataframe()
         sys.exit()
 
+    # Check that required files exist
     if file_exists_and_not_empty(results.select_file):
         logger.info(f'Select file "{os.path.basename(results.select_file)}" found!')
     else:
         sys.exit(f'Select file "{os.path.basename(results.select_file)}" not found in current directory, exiting...')
 
+    if file_exists_and_not_empty(results.mega353_file):
+        logger.info(f'Target file "{os.path.basename(results.select_file)}" found!')
+    else:
+        sys.exit(f'Target file "{os.path.basename(results.select_file)}" not found in current directory, exiting...')
+
     # Parse the files
     control_df = create_control_dataframe()
     select, three5three_list = parse_select_file(control_df, results.select_file)
-    logger.info(f'\nIn addition to the standard 353 target sequences, your filtered target-file will contain sequences '
-                f'from the following taxa: \n{", ".join(select)}.\n\nThese details have been logged to the file '
+    logger.info(f'\nIn addition to the standard 353 target sequences, your filtered target-file '
+                f'({results.filtered_target_file}) will contain sequences from the following '
+                f'taxa: \n{", ".join(select)}.\n\nDetails have been logged to the file '
                 f'"{results.report_filename}"')
     write_select_report(control_df, select, results.report_filename)
     seqs_to_retain = parse_target_file(results.mega353_file, select, three5three_list)

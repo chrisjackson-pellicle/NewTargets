@@ -53,7 +53,14 @@ Please see the Wiki page for [filter_mega353][7] for further details.
 
 **Quick usage:**
 ```
-Code Block
+python BYO_transcriptome.py [-h] [-num_hits_to_recover <integer>]
+                            [-python_threads <integer>]
+                            [-external_program_threads <integer>]
+                            [-length_percentage <float>]
+                            [-hmmsearch_evalue <number in scientific notation; default is 1e-50>]
+                            [-trim_to_refs <taxon_name>] [-no_n]
+                            [-skip_exonerate_frameshift_fix]
+                            target_file transcriptomes_folder
 ```
 
 Please see the Wiki page for [BYO_transcriptomes][6] for further details.

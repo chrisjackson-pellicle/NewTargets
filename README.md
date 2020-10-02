@@ -2,7 +2,7 @@
 
 ## Description
 
-Bioinformatic sequence recovery for universal sequence capture bait kits can be substantially improved by appropriate tailoring of target files to the group under study. To enable the best possible locus recovery from [Angiosperms353][10] capture data, we have developed an expanded target file (`mega353.fasta`) incorporating sequences from over 550 transcriptomes from the [1KP][9] project. To ensure computational efficiency, we provide the script `filter_mega353.py` to tailor the file to the needs of a specific dataset.  `filter_mega353.py` can be used to subsample the `mega353.fasta` file based on user-selected taxa or taxon groups, as defined by unique 1KP transcriptome codes, families, orders, species, or broader groups (e.g. Basal Eudicots, Monocots etc). In addition, we  provide the script `BYO_transcriptomes.py`, which can be used to incorporate sequences from any transcriptome in to any protein-coding target file. These tailored and customised target files can be used directly in target-capture pipelines such as [HybPiper][8]. 
+Bioinformatic sequence recovery for universal sequence capture bait kits can be substantially improved by appropriate tailoring of target files to the group under study. To enable the best possible locus recovery from [Angiosperms353][10] capture data, we have developed an expanded target file (`mega353.fasta`) incorporating sequences from over 550 transcriptomes from the [1KP][9] project. To ensure computational efficiency, we provide the script `filter_mega353.py` to tailor the file to the needs of a specific dataset.  `filter_mega353.py` can be used to subsample the `mega353.fasta` file based on user-selected taxa or taxon groups, as defined by unique 1KP transcriptome codes, families, orders, species, or broader groups (e.g. Basal Eudicots, Monocots etc). In addition, we  provide the script `BYO_transcriptome.py`, which can be used to incorporate sequences from any transcriptome in to any protein-coding target file. These tailored and customised target files can be used directly in target-capture pipelines such as [HybPiper][8]. 
 
 **Data files**
 - `mega353.fasta` A target file for use with target enrichment datasets captured using the Angiosperms353 bait kit. 
@@ -10,7 +10,7 @@ Bioinformatic sequence recovery for universal sequence capture bait kits can be 
 
 **Scripts**
 - `filter_mega353.py` A script to filter the `mega353.fasta` target file.
-- `BYO_transcriptomes.py` A script to add sequences from any transcriptome dataset to any target file containing protein-coding sequences.
+- `BYO_transcriptome.py` A script to add sequences from any transcriptome dataset to any target file containing protein-coding sequences.
 ## Dependencies
 
 Dependencies for `filter_mega353.py`
@@ -74,14 +74,14 @@ Example command line:
 
 `python BYO_transcriptome.py asparagales_targetfile.fasta additional_asparagales_transcriptomes_folder -python_threads 4 -external_program_threads 4`
 
-Please see the Wiki page for [BYO_transcriptomes][6] for further details.
+Please see the Wiki page for [BYO_transcriptome][6] for further details.
 
 [1]: https://www.ebi.ac.uk/about/vertebrate-genomics/software/exonerate/ "Link to EXONERATE download page"
 [2]: http://hmmer.org/ "Link to HMMER download page"
 [3]: https://mafft.cbrc.jp/alignment/software/ "Link to MAFFT download page"
 [4]: https://biopython.org/wiki/Download "Link to BioPython download page"
 [5]: https://github.com/chrisjackson-pellicle/NewTargets/wiki/Installing-script-dependencies "Link to Installing dependencies Wiki page"
-[6]: https://github.com/chrisjackson-pellicle/NewTargets/wiki/BYO_transcriptomes.py:-adding-transcriptome-sequences-to-a-target-file "Link to BYO_transcriptomes Wiki page"
+[6]: https://github.com/chrisjackson-pellicle/NewTargets/wiki/BYO_transcriptome.py:-adding-transcriptome-sequences-to-a-target-file "Link to BYO_transcriptome Wiki page"
 [7]: https://github.com/chrisjackson-pellicle/NewTargets/wiki/filter_mega353.py:-filtering-the-mega353.fasta-target-file "Link to filter_mega353 Wiki page"
 [8]: https://github.com/mossmatters/HybPiper/ "Link to the HybPiper GitHub repository"
 [9]: https://sites.google.com/a/ualberta.ca/onekp/ "Link to the 1000 Plants website"

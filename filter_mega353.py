@@ -1340,8 +1340,8 @@ def parse_arguments():
                                                                 '"filtered_target_file.fasta"',
                         default='filtered_target_file.fasta')
     parser.add_argument("-report_filename", type=str, help='Filename for the report file. Default is '
-                                                           '"new_sequences_added.csv"',
-                        default='new_sequences_added.csv')
+                                                           '"samples_in_filtered_target_file.csv"',
+                        default='samples_in_filtered_target_file.csv')
     parser.add_argument("-list_filtering_options", action='store_true',
                         help="Writes a file named 'filtering_options.csv', containing a list of codes and names that "
                              "can be used in the 'select.txt' file for filtering", default=False)

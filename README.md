@@ -10,7 +10,7 @@ Bioinformatic sequence recovery for universal sequence capture bait kits can be 
 
 **Scripts**
 - `filter_mega353.py` A script to filter the `mega353.fasta` target file.
-- `BYO_transcriptomes.py` A script to add  sequences from any transcriptome dataset to any target file.
+- `BYO_transcriptomes.py` A script to add sequences from any transcriptome dataset to any target file containing protein-coding sequences.
 ## Dependencies
 
 Dependencies for `filter_mega353.py`

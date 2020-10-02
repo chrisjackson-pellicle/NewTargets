@@ -1511,7 +1511,7 @@ def create_mega_target_file(final_seqs_folder, outfolder):
     Writes a megatarget by concatenating the single gene fasta files.
     """
     createfolder(outfolder)
-    megatarget_file = f'{outfolder}/mega_target.fasta'
+    megatarget_file = f'{outfolder}/BYO_target.fasta'
     if file_exists_and_not_empty(megatarget_file):
         os.remove(megatarget_file)
     final_seqs_for_megatarget = [file for file in glob.glob(f'{final_seqs_folder}/*.fasta')]

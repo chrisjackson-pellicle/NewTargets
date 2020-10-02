@@ -67,6 +67,14 @@ Please see the Wiki page for [filter_mega353][7] for further details.
 
 ### BYO_transcriptomes.py
 
+*Input*:
+- `target_file`. A target file containing protein-coding nucleotide sequences in fasta format.
+- `transcriptomes_folder`. A directory containing one or more transcriptomes in fasta format. 
+
+*Output (main results and reports folders; see the Wiki page for full output details*:
+- `17_mega_target_file`. A folder containing the final target file `mega_target.fasta`.
+- `18_reports`. A folder containing the general report file `summary_report.csv`, and the file `report_per_gene.csv` containing a presence/absence matrix of transcriptome hits for each gene/transcriptome.
+
 **Quick usage:**
 ```
 python BYO_transcriptome.py [-h] [-num_hits_to_recover <integer>]

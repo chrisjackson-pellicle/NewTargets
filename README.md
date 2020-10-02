@@ -62,7 +62,7 @@ To generate the `filtering_options.csv` file:
 
 `python filter_mega353.py -list_filtering_options`
 
-Please see the Wiki page for [filter_mega353][7] for further details.
+Please see the Wiki page [filter_mega353][7] for further details.
 ***
 
 ### BYO_transcriptome.py
@@ -90,7 +90,7 @@ Example command line:
 
 `python BYO_transcriptome.py asparagales_targetfile.fasta additional_asparagales_transcriptomes_folder -python_threads 4 -external_program_threads 4`
 
-Please see the Wiki page for [BYO_transcriptome][6] for further details.
+Please see the Wiki page [BYO_transcriptome][6] for further details.
 
 [1]: https://www.ebi.ac.uk/about/vertebrate-genomics/software/exonerate/ "Link to EXONERATE download page"
 [2]: http://hmmer.org/ "Link to HMMER download page"

@@ -393,7 +393,7 @@ Family = ['Aextoxicaceae', 'Berberidopsidaceae', 'Buxaceae', 'Dilleniaceae', 'Di
           'Poaceae', 'Poaceae', 'Poaceae', 'Poaceae', 'Poaceae', 'Poaceae', 'Restionaceae', 'Typhaceae', 'Typhaceae',
           'Cannaceae', 'Heliconiaceae', 'Lowiaceae', 'Marantaceae', 'Strelitziaceae', 'Zingiberaceae', 'Zingiberaceae']
 
-# List of Species names for filrting
+# List of Species names for filtering
 Species = ['Aextoxicon punctatum', 'Berberidopsis beckleri', 'Buxus sempervirens', 'Dillenia indica',
            'Hibbertia grossulariifolia', 'Gunnera manicata', 'Nelumbo sp.', 'Platanus occidentalis',
            'Grevillea robusta', 'Hakea prostrata', 'Meliosma cuneifolia', 'Nandina domestica', 'Podophyllum peltatum',

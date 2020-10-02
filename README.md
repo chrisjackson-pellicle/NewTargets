@@ -45,6 +45,9 @@ python filter_mega353.py [-h] [-filtered_target_file FILTERED_TARGET_FILE]
                          [-list_filtering_options]
                          mega353_file select_file
 ```
+Example command line:
+
+`python filter_mega353.py mega353.fasta select_asparagales.txt -filtered_target_file asparagales_targetfile.fasta -report_filename asparagales_report.csv`
 
 Please see the Wiki page for [filter_mega353][7] for further details.
 ***
@@ -62,6 +65,9 @@ python BYO_transcriptome.py [-h] [-num_hits_to_recover <integer>]
                             [-skip_exonerate_frameshift_fix]
                             target_file transcriptomes_folder
 ```
+Example command line:
+
+`python BYO_transcriptome.py asparagales_targetfile.fasta additional_asparagales_transcriptomes_folder -python_threads 4 -external_program_threads 4`
 
 Please see the Wiki page for [BYO_transcriptomes][6] for further details.
 

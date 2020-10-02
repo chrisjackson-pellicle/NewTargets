@@ -40,20 +40,12 @@ Assuming all dependencies are installed, either:
 ### filter_mega353.py
 
 *Input*:
-- `mega353.fasta` 
-
-   The expanded Angiosperms353 target file.
-- `select_file` 
-
-   A text file containing a list of IDs; sequences from these samples will be retained in the filtered output target file.   
+- `mega353.fasta`. The expanded Angiosperms353 target file.
+- `select_file`. A text file containing a list of IDs; sequences from these samples will be retained in the filtered output target file.   
 
 *Output*:
-- `filtered_target_file` 
-
-   The filtered target file containing the default Angiosperms353 sequences and any additional sequences corresponding to IDs in the `select_file`.
-- `report_file` 
-
-   A report file in `.csv` format, listing samples with seuqences retained in the filtered target file (excluding default Angiosperms353 samples).
+- `filtered_target_file`. The filtered target file containing the default Angiosperms353 sequences and any additional sequences corresponding to IDs in the `select_file`.
+- `report_file`. A report file in `.csv` format, listing samples with seuqences retained in the filtered target file (excluding default Angiosperms353 samples).
 
 **Quick usage:**
 ```

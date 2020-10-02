@@ -16,6 +16,7 @@ Bioinformatic sequence recovery for universal sequence capture bait kits can be 
 Dependencies for `filter_mega353.py`
 - Python 3.7 or higher
 - [BioPython][4] 1.76 or higher
+- [pandas][11] 1.0.3 or higher
 
 Dependencies for `BYO_transcriptomes.py`
 - Python 3.7 or higher
@@ -81,6 +82,7 @@ Please see the Wiki page for [BYO_transcriptomes][6] for further details.
 [8]: https://github.com/mossmatters/HybPiper/ "Link to the HybPiper GitHub repository"
 [9]: https://sites.google.com/a/ualberta.ca/onekp/ "Link to the 1000 Plants website"
 [10]: https://dx.doi.org/10.1093%2Fsysbio%2Fsyy086 "Link to Angiosperms353 manuscript"
+[11]: https://pandas.pydata.org/pandas-docs/stable/getting_started/install.html "Link to pandas installation instructions"
 
 
 

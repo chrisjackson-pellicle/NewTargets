@@ -45,7 +45,7 @@ Assuming all dependencies are installed, either:
 
 *Output*:
 - `filtered_target_file`. The filtered target file containing the default Angiosperms353 sequences and any additional sequences corresponding to IDs in the `select_file`.
-- `report_file`. A report file in `.csv` format, listing samples with seuqences retained in the filtered target file (excluding default Angiosperms353 samples).
+- `report_file`. A report file in `.csv` format, listing samples with sequences retained in the filtered target file (excluding default Angiosperms353 samples).
 
 **Quick usage:**
 ```
@@ -62,10 +62,18 @@ To generate the `filtering_options.csv` file:
 
 `python filter_mega353.py -list_filtering_options`
 
-Please see the Wiki page for [filter_mega353][7] for further details.
+Please see the Wiki page [filter_mega353][7] for further details.
 ***
 
-### BYO_transcriptomes.py
+### BYO_transcriptome.py
+
+*Input*:
+- `target_file`. A target file containing protein-coding nucleotide sequences in fasta format.
+- `transcriptomes_folder`. A directory containing one or more transcriptomes in fasta format. 
+
+*Output (main results and reports folders; see the Wiki page for full output details)*:
+- `17_mega_target_file`. A folder containing the final target file `BYO_target.fasta`.
+- `18_reports`. A folder containing the general report file `summary_report.csv`, and the file `report_per_gene.csv` containing a presence/absence matrix of transcriptome hits for each gene/transcriptome.
 
 **Quick usage:**
 ```
@@ -82,7 +90,7 @@ Example command line:
 
 `python BYO_transcriptome.py asparagales_targetfile.fasta additional_asparagales_transcriptomes_folder -python_threads 4 -external_program_threads 4`
 
-Please see the Wiki page for [BYO_transcriptome][6] for further details.
+Please see the Wiki page [BYO_transcriptome][6] for further details.
 
 [1]: https://www.ebi.ac.uk/about/vertebrate-genomics/software/exonerate/ "Link to EXONERATE download page"
 [2]: http://hmmer.org/ "Link to HMMER download page"

@@ -76,7 +76,7 @@ Please see the Wiki page for [BYO_transcriptomes][6] for further details.
 [2]: http://hmmer.org/ "Link to HMMER download page"
 [3]: https://mafft.cbrc.jp/alignment/software/ "Link to MAFFT download page"
 [4]: https://biopython.org/wiki/Download "Link to BioPython download page"
-[5]: https://github.com/chrisjackson-pellicle/NewTargets/wiki/Installing-dependencies/ "Link to Installing dependencies Wiki page"
+[5]: https://github.com/chrisjackson-pellicle/NewTargets/wiki/Installing-script-dependencies "Link to Installing dependencies Wiki page"
 [6]: https://github.com/chrisjackson-pellicle/NewTargets/wiki/Adding-transcriptome-sequences-to-a-target-file-with-BYO_transcriptomes.py/ "Link to BYO_transcriptomes Wiki page"
 [7]: https://github.com/chrisjackson-pellicle/NewTargets/wiki/Filtering-the-mega353.fasta-target-file/ "Link to filter_mega353 Wiki page"
 [8]: https://github.com/mossmatters/HybPiper/ "Link to the HybPiper GitHub repository"

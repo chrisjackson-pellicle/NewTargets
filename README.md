@@ -71,7 +71,10 @@ Please see the Wiki page [filter_mega353][7] for further details.
 - `target_file`. A target file containing protein-coding nucleotide sequences in fasta format.
 - `transcriptomes_folder`. A directory containing one or more transcriptomes in fasta format. 
 
-*Output (main results and reports folders; see the Wiki page for full output details)*:
+*Output*:
+
+These are the main results and reports folders; see the Wiki page for full output details.
+
 - `17_mega_target_file`. A folder containing the final target file `BYO_target.fasta`.
 - `18_reports`. A folder containing the general report file `summary_report.csv`, and the file `report_per_gene.csv` containing a presence/absence matrix of transcriptome hits for each gene/transcriptome.
 

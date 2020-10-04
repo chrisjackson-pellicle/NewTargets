@@ -18,7 +18,7 @@ Dependencies for `filter_mega353.py`
 - [BioPython][4] 1.76 or higher
 - [pandas][11] 1.0.3 or higher
 
-Dependencies for `BYO_transcriptomes.py`
+Dependencies for `BYO_transcriptome.py`
 - Python 3.7 or higher
 - [EXONERATE][1] 2.4.0
 - [HMMER][2] 3.2.1 or higher

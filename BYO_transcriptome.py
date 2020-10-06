@@ -207,7 +207,7 @@ def check_dependencies(target_file, transcriptomes_folder, python_threads, exter
                        hmmsearch_evalue, refs_for_manual_trimming, no_n):
     """
     Checks Python version, successful import of third part Python modules, the presence of external executables, and
-    HMMER and Exonerate versions. Prints and logs the run parameters.
+    HMMER, Exonerate and MAFFT versions. Prints and logs the run parameters.
     """
 
     # Check python version
@@ -292,11 +292,11 @@ def check_dependencies(target_file, transcriptomes_folder, python_threads, exter
 def check_files_for_processing(target_fasta_file, transcriptomes_folder, refs_for_manual_trimming):
     """
     Checks the number, type and naming conventions of files and target-file fasta headers. Unzips transcriptome files
-    if necessary and creates a copy of each with transcripts renamed to 'contig_1-geneID, contig_2-geneID' etc. Checks
-    that a reference sequence (from either the default list: ['Ambtr', 'Arath', 'Orysa'] or as provided by the
-    -trim_to_refs command line option) is available for each gene in the target file. Checks that each sequence in the
-    target file can be translated without stop codons (or with only a single stop codon found within the last 10
-    amino-acids) in one of the forwards frames.
+    if necessary and creates a copy of each with transcripts renamed to 'contig_1-transcriptomeID,
+    contig_2-transcriptomeID' etc. Checks that a reference sequence (from either the default list: ['Ambtr', 'Arath',
+    'Orysa'] or as provided by the -trim_to_refs command line option) is available for each gene in the target file.
+    Checks that each sequence in the target file can be translated without stop codons (or with only a single stop
+    codon found within the last 10 amino-acids) in one of the forwards frames.
     """
     transcriptomes_folder_base = os.path.basename(transcriptomes_folder)
     target_fasta_file_base = os.path.basename(target_fasta_file)
@@ -789,7 +789,7 @@ def align_extractions_multiprocessing(alignments_folder, output_folder, hit_fold
 
 def trim_alignments_manually(gene_alignment, output_folder, refs_for_trimmed):
     """
-    Takes a fasta alignment file as input, trims it to the longest of sequences from default (_seed_Arath, _seed_Ambtr,
+    Takes a fasta alignment file as input, trims it  to the longest of sequences from default (_seed_Arath, _seed_Ambtr,
     _seed_Orysa), or a user provided list of taxon names.
     """
     try:

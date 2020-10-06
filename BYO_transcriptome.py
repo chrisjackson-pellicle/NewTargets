@@ -474,7 +474,7 @@ def align_targets_multiprocessing(target_gene_folder, alignments_output_folder, 
     Generate alignments via function <align_targets> using multiprocessing.
     """
     createfolder(alignments_output_folder)
-    logger.info('Generating target gene alignments to construct HMM profiles...\n')
+    logger.info('===> Generating target gene alignments to construct HMM profiles...')
     target_genes = [file for file in sorted(glob.glob(f'{target_gene_folder}/*.fasta'))]
 
     with ProcessPoolExecutor(max_workers=pool_threads) as pool:
@@ -489,7 +489,7 @@ def align_targets_multiprocessing(target_gene_folder, alignments_output_folder, 
         wait(future_results, return_when="ALL_COMPLETED")
     alignment_list = [alignment for alignment in glob.glob(f'{alignments_output_folder}/*.aln.fasta') if
                       file_exists_and_not_empty(alignment)]
-    logger.info(f'\n{len(alignment_list)} alignments generated from {len(future_results)} fasta files...\n')
+    logger.info(f'\n{len(alignment_list)} alignments generated from {len(future_results)} fasta files.\n')
     if len(target_genes) != len(alignment_list):
         sys.exit(f'Only {len(alignment_list)} alignments were generated from {len(target_genes)} fasta files, check '
                  f'for errors!')
@@ -525,7 +525,7 @@ def create_hmm_profile_multiprocessing(alignments_folder, hmm_output_folder, poo
     Generate HMM profiles via function <create_hmm_profile> using multiprocessing.
     """
     createfolder(hmm_output_folder)
-    logger.info('Generating hmm profiles from gene alignments...\n')
+    logger.info('===> Generating hmm profiles from gene alignments...')
     alignments = [file for file in sorted(glob.glob(f'{alignments_folder}/*.fasta'))]
 
     with ProcessPoolExecutor(max_workers=pool_threads) as pool:
@@ -539,7 +539,7 @@ def create_hmm_profile_multiprocessing(alignments_folder, hmm_output_folder, poo
             future.add_done_callback(done_callback)
         wait(future_results, return_when="ALL_COMPLETED")
     hmm_list = [hmm for hmm in glob.glob(f'{hmm_output_folder}/*.hmm') if file_exists_and_not_empty(hmm)]
-    logger.info(f'\n{len(hmm_list)} HMM profiles generated from {len(future_results)} alignment files...\n')
+    logger.info(f'\n{len(hmm_list)} HMM profiles generated from {len(future_results)} alignment files.\n')
     if len(alignments) != len(hmm_list):
         sys.exit(f'Only {len(hmm_list)} hmm profiles were generated from {len(alignments)} alignments, check '
                  f'for errors!')
@@ -614,7 +614,7 @@ def hmm_vs_transcriptome_multiprocessing(hmmprofile_folder, transcriptomes_folde
     """
     createfolder(hits_output_folder)
     createfolder(hmm_logs_output_folder)
-    logger.info('Searching transcriptomes with HMM profile...\n')
+    logger.info('===> Searching transcriptomes with HMM profiles...')
 
     hmm_profiles = [hmm for hmm in sorted(glob.glob(f'{hmmprofile_folder}/*.hmm'))]
 
@@ -754,7 +754,7 @@ def align_extractions_multiprocessing(alignments_folder, output_folder, hit_fold
     """
     createfolder(output_folder)
     createfolder(concatenated_folder)
-    logger.info('\n\nAdding transcriptome hits to gene alignments...\n')
+    logger.info('\n\n===> Adding transcriptome hits to gene alignments...')
     alignments = [file for file in sorted(glob.glob(f'{alignments_folder}/*aln.fasta'))]
 
     with ProcessPoolExecutor(max_workers=pool_threads) as pool:
@@ -779,7 +779,7 @@ def align_extractions_multiprocessing(alignments_folder, output_folder, hit_fold
 
         alignment_list = [alignments for alignment in glob.glob(f'{output_folder}/*.aln_added.fasta') if
                           file_exists_and_not_empty(alignment)]
-        logger.info(f'\n{len(alignment_list)} alignments generated from {len(future_results)} alignment files...\n')
+        logger.info(f'\n{len(alignment_list)} alignments generated from {len(future_results)} alignment files.\n')
         if len(alignments) != len(alignment_list):
             sys.exit(f'Only {len(alignment_list)} alignments were generated from {len(alignments)} genes, check '
                      f'for errors!')
@@ -1069,7 +1069,7 @@ def trim_and_discard_or_graft_multiprocessing(alignments_folder, trimmed_alignme
     """
     createfolder(trimmed_alignment_folder)
     createfolder(new_sequence_folder)
-    logger.info('Trimming alignment and grafting or discarding new sequences...\n')
+    logger.info('===> Trimming alignment and grafting or discarding new sequences...')
     alignments = [file for file in sorted(glob.glob(f'{alignments_folder}/*.fasta'))]
 
     with ProcessPoolExecutor(max_workers=pool_threads) as pool:
@@ -1096,7 +1096,7 @@ def trim_and_discard_or_graft_multiprocessing(alignments_folder, trimmed_alignme
 
     processed_alignments = [alignment for alignment in glob.glob(f'{trimmed_alignment_folder}/*.trimmed.fasta') if
                             file_exists_and_not_empty(alignment)]
-    logger.info(f'\n{len(processed_alignments)} alignments processed from {len(future_results)} alignment files...\n')
+    logger.info(f'\n{len(processed_alignments)} alignments processed from {len(future_results)} alignment files.\n')
     if len(alignments) != len(processed_alignments):
         sys.exit(f'Only {len(processed_alignments)} alignments were processed from {len(alignments)} genes, check '
                  f'for errors!')
@@ -1244,7 +1244,7 @@ def check_and_correct_reading_frames_multiprocessing(new_target_sequences_folder
     if not skip_fix_frameshifts_with_exonerate:
         createfolder(exonerate_results_folder)
 
-    logger.info('Checking and correcting reading frames for sequences in new target files...\n')
+    logger.info('===> Checking and correcting reading frames for sequences in new target files...')
     target_files = [file for file in sorted(glob.glob(f'{new_target_sequences_folder}/*.fasta'))]
 
     with ProcessPoolExecutor(max_workers=pool_threads) as pool:
@@ -1272,7 +1272,7 @@ def check_and_correct_reading_frames_multiprocessing(new_target_sequences_folder
 
     processed_target_files = [target_file for target_file in glob.glob(f'{new_target_sequences_folder}/*.fasta') if
                               file_exists_and_not_empty(target_file)]
-    logger.info(f'\n{len(processed_target_files)} alignments processed from {len(future_results)} alignment files...\n')
+    logger.info(f'\n{len(processed_target_files)} alignments processed from {len(future_results)} alignment files.\n')
     return seqs_with_frameshifts
 
 
@@ -1516,7 +1516,7 @@ def create_mega_target_file(final_seqs_folder, outfolder):
         os.remove(megatarget_file)
     final_seqs_for_megatarget = [file for file in glob.glob(f'{final_seqs_folder}/*.fasta')]
     concatenate_small(megatarget_file, *final_seqs_for_megatarget)
-    logger.info(f"\nConcatenating {len(final_seqs_for_megatarget)} fasta files into the target file "
+    logger.info(f"\n===> Concatenating {len(final_seqs_for_megatarget)} fasta files into the target file "
                 f"'{os.path.basename(megatarget_file)}'")
     return megatarget_file
 
@@ -1559,7 +1559,7 @@ def megatarget_single_gene_alignments_multiprocessing(final_seqs_folder, output_
     """
     createfolder(output_folder)
     createfolder(warnings_folder)
-    logger.info('\n\nCreating alignments from final gene fasta files...\n')
+    logger.info('\n\n===> Creating alignments from final gene fasta files...\n')
     fasta_files = [file for file in sorted(glob.glob(f'{final_seqs_folder}/*.fasta'))]
 
     with ProcessPoolExecutor(max_workers=pool_threads) as pool:
@@ -1575,7 +1575,7 @@ def megatarget_single_gene_alignments_multiprocessing(final_seqs_folder, output_
         wait(future_results, return_when="ALL_COMPLETED")
         alignment_list = [alignment for alignment in glob.glob(f'{output_folder}/*.aln.fasta') if
                           file_exists_and_not_empty(alignment)]
-        logger.info(f'\n{len(alignment_list)} alignments generated from {len(future_results)} alignment files...\n')
+        logger.info(f'\n{len(alignment_list)} alignments generated from {len(future_results)} alignment files.\n')
     if len(fasta_files) != len(alignment_list):
         sys.exit(f'Only {len(alignment_list)} alignments were processed from {len(fasta_files)} genes, check '
                  f'for errors!')
@@ -1604,7 +1604,7 @@ def write_report(original_targetfile, transcriptome_folder, new_targetfile_folde
 
     # Recover number and names of transcriptome sequences added
     transcriptome_seqs_added = defaultdict(list)
-    with open(f'{new_targetfile_folder}/mega_target.fasta') as new:
+    with open(f'{new_targetfile_folder}/BYO_target.fasta') as new:
         new_num_seqs = 0
         seqs = SeqIO.parse(new, 'fasta')
         for sequence in seqs:

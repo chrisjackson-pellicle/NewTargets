@@ -419,7 +419,7 @@ def check_files_for_processing(target_fasta_file, transcriptomes_folder, refs_fo
 
 def split_targets(target_fasta_file, output_folder):
     """
-    Takes the target fasta file and splits it into one fasta file per gene (grouping via the number suffix in
+    Takes the target fasta file and splits it into one fasta file per gene (grouping via the uniqueID suffix in
     the fasta header e.g.
 
     >AJFN-4471

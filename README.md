@@ -2,7 +2,7 @@
 
 ## Description
 
-Bioinformatic sequence recovery for universal sequence capture bait kits can be substantially improved by appropriate tailoring of target files to the group under study. To enable the best possible locus recovery from [Angiosperms353][10] capture data, we have developed an expanded target file (`mega353.fasta`) incorporating sequences from over 550 transcriptomes from the [1KP][9] project. To ensure computational efficiency, we provide the script `filter_mega353.py` to tailor the file to the needs of a specific dataset.  `filter_mega353.py` can be used to subsample the `mega353.fasta` file based on user-selected taxa or taxon groups, as defined by unique 1KP transcriptome codes, families, orders, species, or broader groups (e.g. Basal Eudicots, Monocots etc). In addition, we  provide the script `BYO_transcriptome.py`, which can be used to incorporate sequences from any transcriptome in to any protein-coding target file. These tailored and customised target files can be used directly in target-capture pipelines such as [HybPiper][8]. 
+Bioinformatic sequence recovery for universal target-capture bait kits can be substantially improved by appropriate tailoring of target files to the group under study. To enable the best possible locus recovery from [Angiosperms353][10] capture data, we have developed an expanded target file (`mega353.fasta`) incorporating sequences from over 550 transcriptomes from the [1KP][9] project. To maximise computational efficiency we provide the script `filter_mega353.py`, which can be used to subsample the `mega353.fasta` file based on user-selected taxa or taxon groups, as defined by unique 1KP transcriptome codes, species, families, orders, or broader groups (e.g. Basal Eudicots, Monocots, etc). In addition, we  provide the script `BYO_transcriptome.py`, which can be used to add sequences from any transcriptome to any protein-coding nucleotide target file. These tailored and customised target files can be used directly in target-capture pipelines such as [HybPiper][8]. 
 
 **Data files**
 - `mega353.fasta` A target file for use with target enrichment datasets captured using the Angiosperms353 bait kit. 
@@ -18,7 +18,7 @@ Dependencies for `filter_mega353.py`
 - [BioPython][4] 1.76 or higher
 - [pandas][11] 1.0.3 or higher
 
-Dependencies for `BYO_transcriptomes.py`
+Dependencies for `BYO_transcriptome.py`
 - Python 3.7 or higher
 - [EXONERATE][1] 2.4.0
 - [HMMER][2] 3.2.1 or higher
@@ -71,7 +71,10 @@ Please see the Wiki page [filter_mega353][7] for further details.
 - `target_file`. A target file containing protein-coding nucleotide sequences in fasta format.
 - `transcriptomes_folder`. A directory containing one or more transcriptomes in fasta format. 
 
-*Output (main results and reports folders; see the Wiki page for full output details)*:
+*Output*:
+
+These are the main results and reports folders; see the Wiki page for full output details.
+
 - `17_mega_target_file`. A folder containing the final target file `BYO_target.fasta`.
 - `18_reports`. A folder containing the general report file `summary_report.csv`, and the file `report_per_gene.csv` containing a presence/absence matrix of transcriptome hits for each gene/transcriptome.
 

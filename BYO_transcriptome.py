@@ -234,7 +234,7 @@ def check_dependencies(target_file, transcriptomes_folder, python_threads, exter
     elif [int(integer) for integer in re.split(r'[.]| ', version)[1:]] < [3, 2, 1]:
         sys.exit(f'Please use at least HMMer version 3.2.1. You are using {version}')
     else:
-        logger.info(f"You're using HMMer version '{version}', continuing...\n")
+        logger.info(f"You're using HMMer version '{version}', continuing...")
 
     # Check Exonerate version is at least 2.4.0
     exonerate_help = subprocess.run(['exonerate', '-h'], capture_output=True)
@@ -244,7 +244,7 @@ def check_dependencies(target_file, transcriptomes_folder, python_threads, exter
     elif [int(integer) for integer in re.split(r'[.]| ', version)[2:]] < [2, 4, 0]:
         sys.exit(f'Please use at least Exonerate version 2.4.0. You are using {version}')
     else:
-        logger.info(f"You're using Exonerate version '{version}', continuing...\n")
+        logger.info(f"You're using Exonerate version '{version}', continuing...")
 
     # Check mafft version is at least 7.407
     mafft_version = subprocess.run(['mafft', '--version'], capture_output=True)
@@ -317,7 +317,7 @@ def check_files_for_processing(target_fasta_file, transcriptomes_folder, refs_fo
 
     gene_names_in_target_file = [seq.name for gene_seq_list in gene_lists.values() for seq in gene_seq_list]
 
-    # Check that seqs in target_fasta_file can be translated in one of the forwards frames:
+    # Check that seqs in target_fasta_file can be translated the first forwards frames:
     seqs_with_frameshifts_dict = defaultdict(list)
     sequences = list(SeqIO.parse(target_fasta_file, 'fasta'))
     for sequence in sequences:
@@ -656,46 +656,31 @@ def align_extractions(single_gene_alignment, output_folder, hit_folder, concaten
     gene_id = (single_gene_alignment_name.replace('.aln.fasta', ''))
     seqs_with_ns_folder_gene_folder = f'{seqs_with_ns_folder}/{gene_id}'
 
+    # Create a dictionary of transcriptome hit sequences containing Ns, write sequences to file:
+    concatenated_hits = f'{concatenated_folder}/{gene_id}.concat.fasta'  # Write new concatenated hits file
+    if file_exists_and_not_empty(concatenated_hits):
+        os.remove(concatenated_hits)
+    for fasta_file in glob.glob(f'{hit_folder}/{gene_id}/*'):
+        concatenate_small(concatenated_hits, fasta_file)
+    seqs_with_n_dict = defaultdict(list)  # Create a dictionary of seqs that contain Ns
+    for seq in SeqIO.parse(concatenated_hits, 'fasta'):
+        n_count = seq.seq.count('N')
+        if n_count:
+            seqs_with_n_dict[gene_id].append(seq)
+            createfolder(seqs_with_ns_folder_gene_folder)
+            with open(f'{seqs_with_ns_folder_gene_folder}/{gene_id}_seqs_with_ns.fasta', 'w') as seqs_ns:
+                SeqIO.write(seqs_with_n_dict[gene_id], seqs_ns, 'fasta')
+
     try:
         assert file_exists_and_not_empty(single_gene_alignment_with_hits_name)
         logger.debug(f' Alignment exists for {single_gene_alignment_name}, skipping...')
         with lock:
             counter.value += 1
-
-        # Write new concatenated hits file to check for Ns:
-        concatenated_hits = f'{concatenated_folder}/{gene_id}.concat.fasta'  # Write new concatenated hits file
-        if file_exists_and_not_empty(concatenated_hits):
-            os.remove(concatenated_hits)
-        for fasta_file in glob.glob(f'{hit_folder}/{gene_id}/*'):
-            concatenate_small(concatenated_hits, fasta_file)
-        seqs_with_n_dict = defaultdict(list)  # Create a dictionary of seqs that contain Ns
-        for seq in SeqIO.parse(concatenated_hits, 'fasta'):
-            n_count = seq.seq.count('N')
-            if n_count:
-                seqs_with_n_dict[gene_id].append(seq)
-                createfolder(seqs_with_ns_folder_gene_folder)
-                with open(f'{seqs_with_ns_folder_gene_folder}/{gene_id}_seqs_with_ns.fasta', 'w') as seqs_ns:
-                    SeqIO.write(seqs_with_n_dict[gene_id], seqs_ns, 'fasta')
         if seqs_with_n_dict:
             return single_gene_alignment_name, seqs_with_n_dict
         else:
             return single_gene_alignment_name
     except AssertionError:
-        concatenated_hits = f'{concatenated_folder}/{gene_id}.concat.fasta'
-        if file_exists_and_not_empty(concatenated_hits):
-            os.remove(concatenated_hits)
-        for fasta_file in glob.glob(f'{hit_folder}/{gene_id}/*'):
-            concatenate_small(concatenated_hits, fasta_file)
-
-        seqs_with_n_dict = defaultdict(list)  # Create a dictionary of seqs that contain Ns
-        for seq in SeqIO.parse(concatenated_hits, 'fasta'):
-            n_count = seq.seq.count('N')
-            if n_count:
-                seqs_with_n_dict[gene_id].append(seq)
-                createfolder(seqs_with_ns_folder_gene_folder)
-                with open(f'{seqs_with_ns_folder_gene_folder}/{gene_id}_seqs_with_ns.fasta', 'w') as seqs_ns:
-                    SeqIO.write(seqs_with_n_dict[gene_id], seqs_ns, 'fasta')
-
         if no_n and file_exists_and_not_empty(concatenated_hits):  # If requested, strip Ns from transcriptome hits
             concatenated_seqs = SeqIO.parse(concatenated_hits, 'fasta')
             stripped_seqs_to_write = []
@@ -1302,11 +1287,6 @@ def run_exonerate(seqs_with_frameshifts_dict, refs_for_exonerate, single_gene_ne
     ref_names_seqs_and_lengths = [(seq.name, seq, len(seq.seq.ungap(gap='-'))) for seq in
                                   frameshift_free_seqs_list
                                   if re.match(pattern, seq.name)]
-    # INSERT CHECK THAT A LONGEST REF CAN BE FOUND, AND PRINT WARNING AND MOVE ON IF NOT!
-    # if len(ref_names_seqs_and_lengths) == 0:
-    #     logger.info(f'No reference sequence was found for gene {gene_name}, skipping Exonerate frameshift'
-    #                 f' correction step')
-    #     return target_file_basename, seqs_with_frameshifts_dict
     longest_ref_name = max(ref_names_seqs_and_lengths, key=itemgetter(2))[0]
     longest_ref_seq_trans = pad_seq(max(ref_names_seqs_and_lengths, key=itemgetter(2))[1]).translate()
     prot_for_exonerate_name = f'{gene_exonerate_folder}/{gene_name}_{longest_ref_name}_protein.fasta'
@@ -1559,7 +1539,7 @@ def megatarget_single_gene_alignments_multiprocessing(final_seqs_folder, output_
     """
     createfolder(output_folder)
     createfolder(warnings_folder)
-    logger.info('\n\n===> Creating alignments from final gene fasta files...\n')
+    logger.info('===> Creating alignments from final gene fasta files...')
     fasta_files = [file for file in sorted(glob.glob(f'{final_seqs_folder}/*.fasta'))]
 
     with ProcessPoolExecutor(max_workers=pool_threads) as pool:
@@ -1575,7 +1555,7 @@ def megatarget_single_gene_alignments_multiprocessing(final_seqs_folder, output_
         wait(future_results, return_when="ALL_COMPLETED")
         alignment_list = [alignment for alignment in glob.glob(f'{output_folder}/*.aln.fasta') if
                           file_exists_and_not_empty(alignment)]
-        logger.info(f'\n{len(alignment_list)} alignments generated from {len(future_results)} alignment files.\n')
+        logger.info(f'\n{len(alignment_list)} alignments generated from {len(future_results)} alignment files.')
     if len(fasta_files) != len(alignment_list):
         sys.exit(f'Only {len(alignment_list)} alignments were processed from {len(fasta_files)} genes, check '
                  f'for errors!')
@@ -1707,9 +1687,9 @@ def write_report(original_targetfile, transcriptome_folder, new_targetfile_folde
             frameshift_but_no_ns = list(set(all_seqs_with_frameshift).difference(all_seqs_with_ns))
 
             logger.info(f'\n  ==== NOTE ====')
-            if not both_ns_and_frameshifts and not frameshift_but_no_ns:
+            if not both_ns_and_frameshifts:
                 logger.info(textwrap.fill(f'  No sequences contained both Ns and frameshifts.', 98))
-            if both_ns_and_frameshifts:
+            elif both_ns_and_frameshifts:
                 both_ns_and_frameshifts_dict = defaultdict(list)
                 for seq in both_ns_and_frameshifts:
                     gene_name = seq.split('-')[0]
@@ -1850,6 +1830,7 @@ def main():
         pool_threads=results.python_threads,
         no_n=results.no_n)
 
+
     long_seqs_warnings = trim_and_discard_or_graft_multiprocessing(alignments_folder=folder_06,
                                                                    trimmed_alignment_folder=folder_08,
                                                                    alignments_for_grafting_folder=folder_09,
@@ -1874,6 +1855,7 @@ def main():
         refs_for_exonerate=results.refs_for_manual_trimming,
         pool_threads=results.python_threads,
         skip_fix_frameshifts_with_exonerate=results.no_exonerate_fix)
+
 
     megatarget_single_gene_alignments_multiprocessing(final_seqs_folder=folder_11,
                                                       output_folder=folder_15,

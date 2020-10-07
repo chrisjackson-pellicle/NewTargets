@@ -1752,7 +1752,7 @@ def parse_arguments():
     parser.add_argument('target_file', type=str, help='target fasta file containing nucleotide sequences named '
                                                       'following the convention e.g. >AJFN-4471')
     parser.add_argument('transcriptomes_folder', type=str, help='Folder containing transcriptome files. These can '
-                                                                'optionally be zipped in .gz or .bz2 format')
+                                                                'optionally be zipped in .zip, .gz or .bz2 format')
     parser.add_argument("-num_hits_to_recover", type=int, help='Number of HMM hits to recover from each transcriptome, '
                                                                'default is 1', default='1', metavar='<integer>')
     parser.add_argument("-python_threads", type=int, help='number of threads for multiprocessing pools, default is 1',

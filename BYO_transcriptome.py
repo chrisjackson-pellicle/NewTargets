@@ -317,7 +317,7 @@ def check_files_for_processing(target_fasta_file, transcriptomes_folder, refs_fo
 
     gene_names_in_target_file = [seq.name for gene_seq_list in gene_lists.values() for seq in gene_seq_list]
 
-    # Check that seqs in target_fasta_file can be translated the first forwards frames:
+    # Check that seqs in target_fasta_file can be translated in one of the forwards frames:
     seqs_with_frameshifts_dict = defaultdict(list)
     sequences = list(SeqIO.parse(target_fasta_file, 'fasta'))
     for sequence in sequences:

@@ -92,6 +92,7 @@ from collections import defaultdict, OrderedDict
 import glob
 import gzip
 import bz2
+import zipfile
 import numpy as np
 from operator import itemgetter
 from multiprocessing import Manager
@@ -151,6 +152,18 @@ def file_exists_and_not_empty(file_name):
     Check if file exists and is not empty by confirming that its size is not 0 bytes.
     """
     return os.path.isfile(file_name) and not os.path.getsize(file_name) == 0
+
+
+def unzip(file):
+    """
+    Unzip a .zip file unless unzipped file already exists
+    """
+    expected_unzipped_file = re.sub('.zip', '', file)
+    directory_to_unzip = os.path.dirname((file))
+    if not file_exists_and_not_empty(expected_unzipped_file):
+        with zipfile.ZipFile(file) as infile:
+            infile.extractall(directory_to_unzip)
+        os.remove(file)
 
 
 def gunzip(file):
@@ -382,6 +395,9 @@ def check_files_for_processing(target_fasta_file, transcriptomes_folder, refs_fo
         elif file_extension == '.bz2':
             logger.info(f'Unzipping transcriptome {transcriptome_id}...')
             decompress_bz2(transcriptome)
+        elif file_extension == '.zip':
+            logger.info(f'Unzipping transcriptome {transcriptome_id}...')
+            unzip(transcriptome)
 
     # Rename transcriptome sequences
     logger.info(f'Renaming transcriptome sequences...')

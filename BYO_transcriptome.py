@@ -3,7 +3,7 @@
 # Author: Chris Jackson 2020
 
 """
-Script to add sequences to the gene references in a bait-capture target file, using a user-provided
+Script to add sequences to the gene references in a nucleotide bait-capture target file, using a user-provided
 set of transcriptomes.
 
 ########################################################################################################################
@@ -156,7 +156,7 @@ def file_exists_and_not_empty(file_name):
 
 def unzip(file):
     """
-    Unzip a .zip file unless unzipped file already exists
+    Unzip a .zip file unless unzipped file already exists.
     """
     expected_unzipped_file = re.sub('.zip', '', file)
     directory_to_unzip = os.path.dirname((file))
@@ -168,7 +168,7 @@ def unzip(file):
 
 def gunzip(file):
     """
-    Unzips a .gz file unless unzipped file already exists
+    Unzips a .gz file unless unzipped file already exists.
     """
     expected_unzipped_file = re.sub('.gz', '', file)
     if not file_exists_and_not_empty(expected_unzipped_file):
@@ -180,7 +180,7 @@ def gunzip(file):
 
 def decompress_bz2(file):
     """
-    Unzip a .bz2 file unless file already exists
+    Unzip a .bz2 file unless unzipped file already exists.
     """
     expected_unzipped_file = re.sub('.bz2', '', file)
     if not file_exists_and_not_empty(expected_unzipped_file):
@@ -219,7 +219,7 @@ def done_callback(future_returned):
 def check_dependencies(target_file, transcriptomes_folder, python_threads, external_program_threads, length_percentage,
                        hmmsearch_evalue, refs_for_manual_trimming, no_n):
     """
-    Checks Python version, successful import of third part Python modules, the presence of external executables, and
+    Checks Python version, successful import of third party Python modules, the presence of external executables, and
     HMMER, Exonerate and MAFFT versions. Prints and logs the run parameters.
     """
 
@@ -566,7 +566,7 @@ def hmm_vs_transcriptome(hmm_profile, transcriptomes_folder, hits_output_folder,
                          hmmsearch_evalue='1e-50'):
     """
     Performs HMM searches against transcriptome fasta files using the provided HMM profile, extracts hits from
-    transcriptome and adds them to the target fasta file
+    transcriptome and writes them to a fasta file.
     """
     hmm_profile_basename = os.path.basename(hmm_profile)
     gene_name = hmm_profile_basename.split('.')[0]
@@ -648,13 +648,57 @@ def hmm_vs_transcriptome_multiprocessing(hmmprofile_folder, transcriptomes_folde
         wait(future_results, return_when="ALL_COMPLETED")
 
 
+def align_extractions_single_reference(single_gene_alignment, single_gene_alignment_object, concatenated_hits,
+                                       mafft_threads, single_gene_alignment_with_hits_name):
+    """
+    Processes alignments of transcriptome hits to a target file reference in the case where only a single reference is
+    present in the target file.
+    """
+    for single_sequence in single_gene_alignment_object:
+        single_sequence.id = f'_seed_{single_sequence.name}'
+        single_sequence.description = ''
+        single_sequence.name = ''
+        single_ref_sequence = single_sequence
+
+    if file_exists_and_not_empty(concatenated_hits):
+        single_gene_alignment = re.sub('.fasta', '.single_seed.fasta', single_gene_alignment)
+        seqs_to_align = [single_ref_sequence]
+        for hit_seq in SeqIO.parse(concatenated_hits, 'fasta'):
+            seqs_to_align.append(hit_seq)
+        with open(single_gene_alignment, 'w') as seed_single_file:
+            SeqIO.write(seqs_to_align, seed_single_file, 'fasta')
+        mafft_cline = (MafftCommandline(localpair=True, thread=mafft_threads, input=single_gene_alignment,
+                                        lop=-5.00, lep=-0.5, lexp=-0.1))
+        stdout, stderr = mafft_cline()
+        with open(single_gene_alignment_with_hits_name, 'w') as alignment_file:
+            alignment_file.write(stdout)
+        os.remove(single_gene_alignment)
+
+    elif not file_exists_and_not_empty(concatenated_hits):  # i.e. if there are no transcriptome hits.
+        with open(single_gene_alignment_with_hits_name, 'w') as alignment_file:
+            SeqIO.write(single_ref_sequence, alignment_file, 'fasta')
+
+
+def strip_n(concatenated_hits):
+    """
+    Strips the character N from a fasta file of nucleotide sequences.
+    """
+    concatenated_seqs = SeqIO.parse(concatenated_hits, 'fasta')
+    stripped_seqs_to_write = []
+    for seq in concatenated_seqs:
+        seq.seq = seq.seq.ungap(gap='N')
+        stripped_seqs_to_write.append(seq)
+    with open(concatenated_hits, 'w') as n_stripped_concatenated_hits:
+        SeqIO.write(stripped_seqs_to_write, n_stripped_concatenated_hits, 'fasta')
+
+
 def align_extractions(single_gene_alignment, output_folder, hit_folder, concatenated_folder, seqs_with_ns_folder,
                       counter, lock, num_files_to_process, mafft_threads=2, no_n=False):
     """
     Takes a single gene alignment (from folder_02) from the target fasta file and aligns the hits extracted from
     the transcriptomes (from folder_04) using the mafft 'seed' option, which prefixes sequence fasta headers in the
     original alignment with the string '_seed_'. Note that this occurs even if there are no sequences in the
-    'concatenated hits' file. In cases where the target file only contains a single sequences, the
+    'concatenated hits' file. In cases where the target file only contains a single sequence for a given gene, the
     string '_seed_' is manually added as a prefix in the fasta header, and a standard alignment is performed. In the
     latter case, if there are no sequences in the 'concatenated hits' file, the prefixed target sequence is written to
     to a new file by itself.
@@ -698,39 +742,11 @@ def align_extractions(single_gene_alignment, output_folder, hit_folder, concaten
             return single_gene_alignment_name
     except AssertionError:
         if no_n and file_exists_and_not_empty(concatenated_hits):  # If requested, strip Ns from transcriptome hits
-            concatenated_seqs = SeqIO.parse(concatenated_hits, 'fasta')
-            stripped_seqs_to_write = []
-            for seq in concatenated_seqs:
-                seq.seq = seq.seq.ungap(gap='N')
-                stripped_seqs_to_write.append(seq)
-            with open(concatenated_hits, 'w') as n_stripped_concatenated_hits:
-                SeqIO.write(stripped_seqs_to_write, n_stripped_concatenated_hits, 'fasta')
+            strip_n(concatenated_hits)
 
         if single_reference:  # i.e. if there's only a single target sequence for this gene in the target file.
-            for single_sequence in single_gene_alignment_object:
-                single_sequence.id = f'_seed_{single_sequence.name}'
-                single_sequence.description = ''
-                single_sequence.name = ''
-                single_ref_sequence = single_sequence
-
-            if file_exists_and_not_empty(concatenated_hits):
-                single_gene_alignment = re.sub('.fasta', '.single_seed.fasta', single_gene_alignment)
-                seqs_to_align = [single_ref_sequence]
-                for hit_seq in SeqIO.parse(concatenated_hits, 'fasta'):
-                    seqs_to_align.append(hit_seq)
-                with open(single_gene_alignment, 'w') as seed_single_file:
-                    SeqIO.write(seqs_to_align, seed_single_file, 'fasta')
-                mafft_cline = (MafftCommandline(localpair=True, thread=mafft_threads, input=single_gene_alignment,
-                                                lop=-5.00, lep=-0.5, lexp=-0.1))
-                stdout, stderr = mafft_cline()
-                with open(single_gene_alignment_with_hits_name, 'w') as alignment_file:
-                    alignment_file.write(stdout)
-                os.remove(single_gene_alignment)
-
-            elif not file_exists_and_not_empty(concatenated_hits):  # i.e. if there are no transcriptome hits.
-                with open(single_gene_alignment_with_hits_name, 'w') as alignment_file:
-                    SeqIO.write(single_ref_sequence, alignment_file, 'fasta')
-
+            align_extractions_single_reference(single_gene_alignment, single_gene_alignment_object, concatenated_hits,
+                                               mafft_threads, single_gene_alignment_with_hits_name)
         elif not single_reference:
             mafft_cline = (MafftCommandline(localpair=True, thread=mafft_threads, input=concatenated_hits, lop=-5.00,
                                             lep=-0.5, lexp=-0.1, seed=single_gene_alignment))
@@ -889,7 +905,6 @@ def graft_with_closest_target(trimmed_dm, trimmed_alignment, sequence_to_graft):
     graft_alignment = MultipleSeqAlignment([sequence_to_graft, seq_to_graft_with])
     # return graft_alignment, seq_to_graft_with.name.strip('_seed_')
     return graft_alignment, seq_to_graft_with.name
-
 
 
 def write_fasta_and_mafft_align(original_alignment, trimmed_alignment, mafft_threads):

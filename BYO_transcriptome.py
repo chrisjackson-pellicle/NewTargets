@@ -231,7 +231,7 @@ def check_dependencies(target_file, transcriptomes_folder, python_threads, exter
 
     # Check external executables
     executables = ['hmmbuild', 'hmmsearch', 'mafft', 'exonerate']
-    logger.info("")
+    logger.info('')
     for executable in executables:
         if not shutil.which(executable):
             sys.exit(f"Required executable '{executable}' not found. Is it installed and in your PATH?")
@@ -468,20 +468,18 @@ def align_targets(fasta_file, algorithm, output_folder, counter, lock, num_files
     try:
         assert file_exists_and_not_empty(expected_alignment_file)
         logger.debug(f'Alignment exists for {fasta_file_basename}, skipping...')
-        with lock:
-            counter.value += 1
         return os.path.basename(expected_alignment_file)
     except AssertionError:
         mafft_cline = (MafftCommandline(algorithm, thread=threads, input=fasta_file))
         stdout, stderr = mafft_cline()
         with open(expected_alignment_file, 'w') as alignment_file:
             alignment_file.write(stdout)
-            with lock:
-                counter.value += 1
         return os.path.basename(expected_alignment_file)
     finally:
-        print(f'\rFinished generating alignment for file {fasta_file_basename}, '
-              f'{counter.value}/{num_files_to_process}', end='')
+        with lock:
+            counter.value += 1
+            print(f'\rFinished generating alignment for file {fasta_file_basename}, '
+                  f'{counter.value}/{num_files_to_process}', end='')
 
 
 def align_targets_multiprocessing(target_gene_folder, alignments_output_folder, algorithm='linsi', pool_threads=1,
@@ -508,7 +506,7 @@ def align_targets_multiprocessing(target_gene_folder, alignments_output_folder, 
     logger.info(f'\n{len(alignment_list)} alignments generated from {len(future_results)} fasta files.\n')
     if len(target_genes) != len(alignment_list):
         sys.exit(f'Only {len(alignment_list)} alignments were generated from {len(target_genes)} fasta files, check '
-                 f'for errors!')
+                  f'for errors!')
 
 
 def create_hmm_profile(alignment, output_folder, counter, lock, num_files_to_process, hmmbuild_threads=2):
@@ -521,19 +519,17 @@ def create_hmm_profile(alignment, output_folder, counter, lock, num_files_to_pro
 
     try:
         assert file_exists_and_not_empty(expected_hmm_file)
-        logger.debug(f' HMM profile exists for {alignment_file_basename}, skipping...')
-        with lock:
-            counter.value += 1
+        logger.debug(f'HMM profile exists for {alignment_file_basename}, skipping...')
         return alignment_file_basename
     except AssertionError:
         subprocess.run(['hmmbuild', '-o', '/dev/null', '--cpu', str(hmmbuild_threads), '--dna', expected_hmm_file,
                         alignment], check=True)
-        with lock:
-            counter.value += 1
         return alignment_file_basename
     finally:
-        print(f'\rFinished generating HMM profile for alignment {alignment_file_basename}, '
-              f'{counter.value}/{num_files_to_process}', end='')
+        with lock:
+            counter.value += 1
+            print(f'\rFinished generating HMM profile for alignment {alignment_file_basename}, '
+                  f'{counter.value}/{num_files_to_process}', end='')
 
 
 def create_hmm_profile_multiprocessing(alignments_folder, hmm_output_folder, pool_threads=1, hmmbuild_threads=2):
@@ -734,8 +730,6 @@ def align_extractions(single_gene_alignment, output_folder, hit_folder, concaten
     try:
         assert file_exists_and_not_empty(single_gene_alignment_with_hits_name)
         logger.debug(f' Alignment exists for {single_gene_alignment_name}, skipping...')
-        with lock:
-            counter.value += 1
         if seqs_with_n_dict:
             return single_gene_alignment_name, seqs_with_n_dict
         else:
@@ -743,7 +737,6 @@ def align_extractions(single_gene_alignment, output_folder, hit_folder, concaten
     except AssertionError:
         if no_n and file_exists_and_not_empty(concatenated_hits):  # If requested, strip Ns from transcriptome hits
             strip_n(concatenated_hits)
-
         if single_reference:  # i.e. if there's only a single target sequence for this gene in the target file.
             align_extractions_single_reference(single_gene_alignment, single_gene_alignment_object, concatenated_hits,
                                                mafft_threads, single_gene_alignment_with_hits_name)
@@ -753,15 +746,15 @@ def align_extractions(single_gene_alignment, output_folder, hit_folder, concaten
             stdout, stderr = mafft_cline()
             with open(single_gene_alignment_with_hits_name, 'w') as alignment_file:
                 alignment_file.write(stdout)
-        with lock:
-            counter.value += 1
         if seqs_with_n_dict:
             return single_gene_alignment_name, seqs_with_n_dict
         else:
             return single_gene_alignment_name
     finally:
-        print(f'\rFinished aligning transcriptome hits for {single_gene_alignment_name}, '
-              f'{counter.value}/{num_files_to_process}', end='')
+        with lock:
+            counter.value += 1
+            print(f'\rFinished aligning transcriptome hits for {single_gene_alignment_name}, '
+                  f'{counter.value}/{num_files_to_process}', end='')
 
 
 def align_extractions_multiprocessing(alignments_folder, output_folder, hit_folder, seqs_with_ns_folder,
@@ -806,7 +799,7 @@ def align_extractions_multiprocessing(alignments_folder, output_folder, hit_fold
 
 def trim_alignments_manually(gene_alignment, output_folder, refs_for_trimmed):
     """
-    Takes a fasta alignment file as input, trims it  to the longest of sequences from default (_seed_Arath, _seed_Ambtr,
+    Takes a fasta alignment file as input, trims it to the longest of sequences from default (_seed_Arath, _seed_Ambtr,
     _seed_Orysa), or a user provided list of taxon names.
     """
     try:
@@ -834,10 +827,7 @@ def trim_alignments_manually(gene_alignment, output_folder, refs_for_trimmed):
         pattern = re.compile(re_compile_string)
         seed_names_and_lengths = [(seq.name, len(seq.seq.ungap(gap='-'))) for seq in untrimmed_alignment if
                                   re.search(pattern, seq.name)]
-        if len(seed_names_and_lengths) != 0:
-            longest_ref_name = max(seed_names_and_lengths, key=itemgetter(1))[0]  # I think this'll throw an error before the 'if trimmed_ref_found' check below, if the 'seed_names_and_lengths' list is empty - check and fix!
-        else:
-            sys.exit(f"Can't find a reference to trim to from {pattern.pattern.split('|')} for {alignment_name}, exiting...")
+        longest_ref_name = max(seed_names_and_lengths, key=itemgetter(1))[0]
         reference_index_count = 0
         trimmed_ref_found = False
         for sequence in untrimmed_alignment:
@@ -848,9 +838,6 @@ def trim_alignments_manually(gene_alignment, output_folder, refs_for_trimmed):
                 reference_index_count += 1  # get index for reference seq to trim to
         if trimmed_ref_found:
             logger.debug(f'Found reference {longest_ref_name} at index {reference_index_count}!')
-        else:
-            logger.info("ERROR - can't find ref to trim to!")
-            sys.exit(f"Can't find a reference to trim to for {alignment_name}")
         untrimmed_array = np.array([sequence.seq for sequence in untrimmed_alignment])
         five_prime_slice = 0
         for position in untrimmed_array.T:
@@ -884,9 +871,9 @@ class ExtendDistanceCalculator(DistanceCalculator):
     dna_alphabet = ["a", "t", "c", "g"]
 
 
-def graft_with_closest_target(trimmed_dm, trimmed_alignment, sequence_to_graft):
+def get_graft_alignment(trimmed_dm, trimmed_alignment, sequence_to_graft):
     """
-    Grafts a given sequence with the closest identity sequence in a given alignment. Returns an alignment
+    For a given sequence, identifies the closest identity sequence in a given alignment. Returns an alignment
     of both sequences, and the name of the sequence used from grafting.
     """
     dm = trimmed_dm
@@ -903,7 +890,6 @@ def graft_with_closest_target(trimmed_dm, trimmed_alignment, sequence_to_graft):
             break
     logger.debug(f'Sequence with highest identity to {sequence_to_graft.name} is {seq_to_graft_with.name}, grafting...')
     graft_alignment = MultipleSeqAlignment([sequence_to_graft, seq_to_graft_with])
-    # return graft_alignment, seq_to_graft_with.name.strip('_seed_')
     return graft_alignment, seq_to_graft_with.name
 
 
@@ -954,7 +940,7 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
     where SPAdes contigs are compared to the sequence with the highest BWA alignment score, and we don't want truncated
     sequences to be chosen.
 
-    [Uses the functions: trim_alignments_manually, graft_with_closest_target, new_seqs_longer_than_seeds,
+    [Uses the functions: trim_alignments_manually, get_graft_alignment, new_seqs_longer_than_seeds,
     write_fasta_and_mafft_align]
     """
     alignment_name = os.path.basename(alignment)
@@ -968,8 +954,6 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
         trimmed_alignment = AlignIO.read(f'{trimmed_alignment_folder}/{gene_name}.aln.trimmed.fasta', "fasta")
         if new_seqs_longer_than_seeds(trimmed_alignment):
             warning = f'***WARNING*** A newly added sequence is longer than it should be for gene {gene_name}!'
-        with lock:
-            counter.value += 1
         return alignment_name, warning
     except AssertionError:
         trimmed = trim_alignments_manually(alignment, trimmed_alignment_folder, refs_for_trimmed)
@@ -1021,8 +1005,8 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
                                      f'for this gene. Grafting sequence with closest identity...')
                         grafted_gene_directory = f'{alignments_for_grafting_folder}/{gene_name}'
                         createfolder(grafted_gene_directory)
-                        graft_alignment, seq_to_graft_name = graft_with_closest_target(trimmed_dm, trimmed_alignment,
-                                                                                       new_sequence_to_graft)
+                        graft_alignment, seq_to_graft_name = get_graft_alignment(trimmed_dm, trimmed_alignment,
+                                                                                 new_sequence_to_graft)
 
                         with open(f'{grafted_gene_directory}/{trimmed_seq.name}.aln.fasta', 'w') \
                                 as outfile:
@@ -1069,12 +1053,12 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
                     else:
                         sequence.name = f'{transcriptome_id}-{gene_name}'
                     seqfile.write(f'>{sequence.name}\n{sequence.seq}\n')
-        with lock:
-            counter.value += 1
         return alignment_name, warning
     finally:
-        print(f'\rFinished trimmming and grafting/discarding transcriptome hits for {alignment_name}, '
-              f'{counter.value}/{num_files_to_process}', end='')
+        with lock:
+            counter.value += 1
+            print(f'\rFinished trimmming and grafting/discarding transcriptome hits for {alignment_name}, '
+                  f'{counter.value}/{num_files_to_process}', end='')
 
 
 def trim_and_discard_or_graft_multiprocessing(alignments_folder, trimmed_alignment_folder,
@@ -1216,8 +1200,6 @@ def check_and_correct_reading_frames(single_gene_new_target_file, frameshifts_fo
                     seqs_with_frameshifts_dict[gene_name].append(sequence)
         with open(single_gene_new_target_file, 'w') as checked_target_file:
             SeqIO.write(seqs_to_retain, checked_target_file, 'fasta')
-        with lock:
-            counter.value += 1
         if not open_frame_found:
             warning = f'***WARNING*** Target file {target_file_basename} contains at least one sequence with no ' \
                       f'full-length ORF in any reading frame; such sequences have been removed!'
@@ -1243,8 +1225,10 @@ def check_and_correct_reading_frames(single_gene_new_target_file, frameshifts_fo
         logger.debug(f'Checking and correcting read frames failed for gene {gene_name}')
         raise
     finally:
-        print(f'\rFinished checking and correcting reading frames for gene {gene_name}, '
-              f'{counter.value}/{num_files_to_process}', end='')
+        with lock:
+            counter.value += 1
+            print(f'\rFinished checking and correcting reading frames for gene {gene_name}, '
+                  f'{counter.value}/{num_files_to_process}', end='')
 
 
 def check_and_correct_reading_frames_multiprocessing(new_target_sequences_folder, frameshifts_folder,
@@ -1544,8 +1528,6 @@ def megatarget_single_gene_alignments(final_seqs_file, output_folder, warnings_f
     try:
         assert file_exists_and_not_empty(expected_alignment_file)
         logger.debug(f' Alignment exists for {basename}, skipping...')
-        with lock:
-            counter.value += 1
         return expected_alignment_file
     except AssertionError:
         # mafft_cline = (MafftCommandline(localpair=True, lep=-1.0, thread=mafft_threads, input=f'{final_seqs_file}'))
@@ -1555,12 +1537,12 @@ def megatarget_single_gene_alignments(final_seqs_file, output_folder, warnings_f
             alignment_file.write(stdout)
         if basename.split('.')[0] in genes_with_warnings:
             shutil.copy(expected_alignment_file, warnings_folder)
-        with lock:
-            counter.value += 1
         return expected_alignment_file
     finally:
-        print(f'\rFinished aligning fasta file for {basename}, '
-              f'{counter.value}/{num_files_to_process}', end='')
+        with lock:
+            counter.value += 1
+            print(f'\rFinished aligning fasta file for {basename}, '
+                  f'{counter.value}/{num_files_to_process}', end='')
 
 
 def megatarget_single_gene_alignments_multiprocessing(final_seqs_folder, output_folder, warnings_folder,

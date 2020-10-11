@@ -49,17 +49,6 @@ NOTE:
 
 """
 
-"""
-THINGS TO DO:
--   Processes from ProcessPoolExecutor should shutdown on keyboard interrupt.
-    - https://stackoverflow.com/questions/1231599/python-multiprocessing-exit-elegantly-how
-    - https://stackoverflow.com/questions/44584394/python-multiprocessing-kill-producer-and-consumer-processes-with-\
-    keyboardinterr
-    - https://stackoverflow.com/questions/34473069/multiprocessing-keyboardinterrupt-handling
-    - https://stackoverflow.com/questions/36962462/terminate-a-python-multiprocessing-program-once-a-one-of-its-\
-    workers-meets-a-cer
-"""
-
 import sys
 try:
     import Bio
@@ -198,6 +187,14 @@ def concatenate_small(outfile, *args):
         for filename in args:
             with open(filename, 'r') as infile:
                 outfile.write(infile.read())
+
+
+def pad_seq(sequence):
+    """
+    Pads a sequence Seq object to a multiple of 3 with 'N'.
+    """
+    remainder = len(sequence) % 3
+    return sequence if remainder == 0 else sequence + Seq('N' * (3 - remainder))
 
 
 def done_callback(future_returned):
@@ -468,18 +465,17 @@ def align_targets(fasta_file, algorithm, output_folder, counter, lock, num_files
     try:
         assert file_exists_and_not_empty(expected_alignment_file)
         logger.debug(f'Alignment exists for {fasta_file_basename}, skipping...')
-        return os.path.basename(expected_alignment_file)
     except AssertionError:
         mafft_cline = (MafftCommandline(algorithm, thread=threads, input=fasta_file))
         stdout, stderr = mafft_cline()
         with open(expected_alignment_file, 'w') as alignment_file:
             alignment_file.write(stdout)
-        return os.path.basename(expected_alignment_file)
     finally:
         with lock:
             counter.value += 1
             print(f'\rFinished generating alignment for file {fasta_file_basename}, '
                   f'{counter.value}/{num_files_to_process}', end='')
+        return os.path.basename(expected_alignment_file)
 
 
 def align_targets_multiprocessing(target_gene_folder, alignments_output_folder, algorithm='linsi', pool_threads=1,
@@ -520,16 +516,15 @@ def create_hmm_profile(alignment, output_folder, counter, lock, num_files_to_pro
     try:
         assert file_exists_and_not_empty(expected_hmm_file)
         logger.debug(f'HMM profile exists for {alignment_file_basename}, skipping...')
-        return alignment_file_basename
     except AssertionError:
         subprocess.run(['hmmbuild', '-o', '/dev/null', '--cpu', str(hmmbuild_threads), '--dna', expected_hmm_file,
                         alignment], check=True)
-        return alignment_file_basename
     finally:
         with lock:
             counter.value += 1
             print(f'\rFinished generating HMM profile for alignment {alignment_file_basename}, '
                   f'{counter.value}/{num_files_to_process}', end='')
+        return alignment_file_basename
 
 
 def create_hmm_profile_multiprocessing(alignments_folder, hmm_output_folder, pool_threads=1, hmmbuild_threads=2):
@@ -730,10 +725,6 @@ def align_extractions(single_gene_alignment, output_folder, hit_folder, concaten
     try:
         assert file_exists_and_not_empty(single_gene_alignment_with_hits_name)
         logger.debug(f' Alignment exists for {single_gene_alignment_name}, skipping...')
-        if seqs_with_n_dict:
-            return single_gene_alignment_name, seqs_with_n_dict
-        else:
-            return single_gene_alignment_name
     except AssertionError:
         if no_n and file_exists_and_not_empty(concatenated_hits):  # If requested, strip Ns from transcriptome hits
             strip_n(concatenated_hits)
@@ -746,15 +737,15 @@ def align_extractions(single_gene_alignment, output_folder, hit_folder, concaten
             stdout, stderr = mafft_cline()
             with open(single_gene_alignment_with_hits_name, 'w') as alignment_file:
                 alignment_file.write(stdout)
-        if seqs_with_n_dict:
-            return single_gene_alignment_name, seqs_with_n_dict
-        else:
-            return single_gene_alignment_name
     finally:
         with lock:
             counter.value += 1
             print(f'\rFinished aligning transcriptome hits for {single_gene_alignment_name}, '
                   f'{counter.value}/{num_files_to_process}', end='')
+        if seqs_with_n_dict:
+            return single_gene_alignment_name, seqs_with_n_dict
+        else:
+            return single_gene_alignment_name
 
 
 def align_extractions_multiprocessing(alignments_folder, output_folder, hit_folder, seqs_with_ns_folder,
@@ -821,7 +812,6 @@ def trim_alignments_manually(gene_alignment, output_folder, refs_for_trimmed):
     try:
         assert file_exists_and_not_empty(expected_output_file)
         logger.debug(f'Trimmed alignment already exists for {alignment_name}, skipping....')
-        return expected_output_file
     except AssertionError:
         untrimmed_alignment = AlignIO.read(gene_alignment, "fasta")
         pattern = re.compile(re_compile_string)
@@ -855,7 +845,8 @@ def trim_alignments_manually(gene_alignment, output_folder, refs_for_trimmed):
         sliced_alignment = untrimmed_alignment[:, five_prime_slice:corrected_three_prime_slice]
         with open(f'{output_folder}/{trimmed_alignment}', 'w') as outfile:
             AlignIO.write(sliced_alignment, outfile, 'fasta')
-        return f'{output_folder}/{trimmed_alignment}'
+    finally:
+        return expected_output_file
 
 
 class ExtendDistanceCalculator(DistanceCalculator):
@@ -947,14 +938,14 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
     logger.debug(f'Processing alignment {alignment_name}')
     gene_name = alignment_name.split('.')[0]
     expected_output_file = f'{new_sequence_folder}/{gene_name}.fasta'
+    warning = False
     try:
         assert file_exists_and_not_empty(expected_output_file)
         logger.debug(f'A fasta file of new sequences to add already exists for {alignment_name}, skipping....')
-        warning = False
+        # warning = False
         trimmed_alignment = AlignIO.read(f'{trimmed_alignment_folder}/{gene_name}.aln.trimmed.fasta', "fasta")
         if new_seqs_longer_than_seeds(trimmed_alignment):
             warning = f'***WARNING*** A newly added sequence is longer than it should be for gene {gene_name}!'
-        return alignment_name, warning
     except AssertionError:
         trimmed = trim_alignments_manually(alignment, trimmed_alignment_folder, refs_for_trimmed)
 
@@ -963,7 +954,7 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
 
         # Check if any transcriptome hit sequence is more than 10% longer than the longest seed sequence and, if it
         # is, realign and re-trim
-        warning = False
+        # warning = False
         if new_seqs_longer_than_seeds(trimmed_alignment):
             write_fasta_and_mafft_align(alignment, trimmed, mafft_threads)
             os.remove(trimmed)
@@ -1053,13 +1044,12 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
                     else:
                         sequence.name = f'{transcriptome_id}-{gene_name}'
                     seqfile.write(f'>{sequence.name}\n{sequence.seq}\n')
-        return alignment_name, warning
     finally:
         with lock:
             counter.value += 1
             print(f'\rFinished trimmming and grafting/discarding transcriptome hits for {alignment_name}, '
                   f'{counter.value}/{num_files_to_process}', end='')
-
+        return alignment_name, warning
 
 def trim_and_discard_or_graft_multiprocessing(alignments_folder, trimmed_alignment_folder,
                                               alignments_for_grafting_folder, new_sequence_folder, pool_threads,
@@ -1132,14 +1122,6 @@ def create_new_targets_file(gene_fasta_file, seqs_to_add_folder, seqs_to_write_f
                 SeqIO.write(seq, to_write, 'fasta')
 
 
-def pad_seq(sequence):
-    """
-    Pads a sequence to a multiple of 3 with 'N'.
-    """
-    remainder = len(sequence) % 3
-    return sequence if remainder == 0 else sequence + Seq('N' * (3 - remainder))
-
-
 def check_and_correct_reading_frames(single_gene_new_target_file, frameshifts_folder, uncorrected_frameshifts_folder,
                                      exonerate_results_folder, refs_for_exonerate, counter, lock, num_files_to_process,
                                      skip_fix_frameshifts_with_exonerate=False):
@@ -1152,23 +1134,24 @@ def check_and_correct_reading_frames(single_gene_new_target_file, frameshifts_fo
     Uses the function <run_exonerate>.
     """
 
-    basename = os.path.basename(single_gene_new_target_file)
-    gene_name = f"{basename.split('.')[0]}"
+    target_file_basename = os.path.basename(single_gene_new_target_file)
+    gene_name = f"{target_file_basename.split('.')[0]}"
     gene_with_frameshifts_folder = f'{frameshifts_folder}/{gene_name}'
     gene_with_uncorrected_frameshifts_folder = f'{uncorrected_frameshifts_folder}/{gene_name}'
     gene_exonerate_folder = f'{exonerate_results_folder}/{gene_name}'
     gene_with_frameshift_file = f'{gene_with_frameshifts_folder}/{gene_name}_with_frameshifts.fasta'
     gene_with_uncorrected_frameshifts_file = f'{gene_with_uncorrected_frameshifts_folder}/' \
                                              f'{gene_name}_with_uncorrected_frameshifts.fasta'
+    seqs_with_frameshifts_dict = defaultdict(list)
     if file_exists_and_not_empty(gene_with_frameshift_file):
         os.remove(gene_with_frameshift_file)
     if file_exists_and_not_empty(gene_with_uncorrected_frameshifts_file):
         os.remove(gene_with_uncorrected_frameshifts_file)
 
     try:
-        target_file_basename = os.path.basename(single_gene_new_target_file)
+        # target_file_basename = os.path.basename(single_gene_new_target_file)
         seqs_to_retain = []
-        seqs_with_frameshifts_dict = defaultdict(list)
+        # seqs_with_frameshifts_dict = defaultdict(list)
         sequences = list(SeqIO.parse(single_gene_new_target_file, 'fasta'))
         open_frame_found = True
         for sequence in sequences:
@@ -1212,15 +1195,10 @@ def check_and_correct_reading_frames(single_gene_new_target_file, frameshifts_fo
                 seqs_with_frameshifts_dict = run_exonerate(seqs_with_frameshifts_dict, refs_for_exonerate,
                                                            single_gene_new_target_file, gene_name,
                                                            gene_exonerate_folder)
-            if len(seqs_with_frameshifts_dict[gene_name]) != 0:  # i.e. some seqs couldn't be fixed...
+            if seqs_with_frameshifts_dict[gene_name]:  # i.e. some seqs couldn't be fixed...
                 createfolder(gene_with_uncorrected_frameshifts_folder)
                 with open(gene_with_uncorrected_frameshifts_file, 'w') as uncorrected_frameshifts:
                     SeqIO.write(seqs_with_frameshifts_dict[gene_name], uncorrected_frameshifts, 'fasta')
-                return target_file_basename, seqs_with_frameshifts_dict
-            else:
-                return target_file_basename
-        else:
-            return target_file_basename
     except:
         logger.debug(f'Checking and correcting read frames failed for gene {gene_name}')
         raise
@@ -1229,6 +1207,10 @@ def check_and_correct_reading_frames(single_gene_new_target_file, frameshifts_fo
             counter.value += 1
             print(f'\rFinished checking and correcting reading frames for gene {gene_name}, '
                   f'{counter.value}/{num_files_to_process}', end='')
+        if seqs_with_frameshifts_dict[gene_name]:
+            return target_file_basename, seqs_with_frameshifts_dict
+        else:
+            return target_file_basename
 
 
 def check_and_correct_reading_frames_multiprocessing(new_target_sequences_folder, frameshifts_folder,
@@ -1528,7 +1510,6 @@ def megatarget_single_gene_alignments(final_seqs_file, output_folder, warnings_f
     try:
         assert file_exists_and_not_empty(expected_alignment_file)
         logger.debug(f' Alignment exists for {basename}, skipping...')
-        return expected_alignment_file
     except AssertionError:
         # mafft_cline = (MafftCommandline(localpair=True, lep=-1.0, thread=mafft_threads, input=f'{final_seqs_file}'))
         mafft_cline = (MafftCommandline('linsi', thread=mafft_threads, input=f'{final_seqs_file}'))
@@ -1537,12 +1518,12 @@ def megatarget_single_gene_alignments(final_seqs_file, output_folder, warnings_f
             alignment_file.write(stdout)
         if basename.split('.')[0] in genes_with_warnings:
             shutil.copy(expected_alignment_file, warnings_folder)
-        return expected_alignment_file
     finally:
         with lock:
             counter.value += 1
             print(f'\rFinished aligning fasta file for {basename}, '
                   f'{counter.value}/{num_files_to_process}', end='')
+        return expected_alignment_file
 
 
 def megatarget_single_gene_alignments_multiprocessing(final_seqs_folder, output_folder, warnings_folder,
@@ -1699,17 +1680,15 @@ def write_report(original_targetfile, transcriptome_folder, new_targetfile_folde
             both_ns_and_frameshifts = list(set(all_seqs_with_ns) & set(all_seqs_with_frameshift))
             frameshift_but_no_ns = list(set(all_seqs_with_frameshift).difference(all_seqs_with_ns))
 
-            logger.info(f'\n  ==== NOTE ====')
-            if not both_ns_and_frameshifts:
-                logger.info(textwrap.fill(f'  No sequences contained both Ns and frameshifts.', 98))
-            elif both_ns_and_frameshifts:
+            if both_ns_and_frameshifts:
+                logger.info(f'\n  ==== NOTE ====')
                 both_ns_and_frameshifts_dict = defaultdict(list)
                 for seq in both_ns_and_frameshifts:
                     gene_name = seq.split('-')[0]
                     both_ns_and_frameshifts_dict[gene_name].append(seq)
-                fill = textwrap.fill(f'Some genes had sequences that contained both Ns and frameshifts; '
-                                     f'{len(both_ns_and_frameshifts)} such sequences were found. Details have been '
-                                     f'logged to the the summary report.', 98)
+                fill = textwrap.fill(f'Some genes had sequences that contained both Ns and frameshifts that could not '
+                                     f'be corrected; {len(both_ns_and_frameshifts)} such sequences were found. '
+                                     f'Details have been logged to the the summary report.', 98)
                 logger.info(textwrap.indent(fill, '  '))
                 summary.write(f'\n')
                 summary.write(f'GENE,SEQUENCES THAT CONTAINED BOTH FRAMESHIFTS AND Ns\n')

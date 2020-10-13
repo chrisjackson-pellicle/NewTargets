@@ -13,7 +13,7 @@ Additional information:
 NOTE:
 
 1)  Your target genes should be grouped and differentiated by a suffix in the fasta header,
-    consisting of an dash followed by an ID unique to each gene, e.g.:
+    consisting of a dash followed by an ID unique to each gene, e.g.:
 
     >AJFN-4471
     >Ambtr-4471
@@ -138,14 +138,14 @@ def createfolder(directory):
 
 def file_exists_and_not_empty(file_name):
     """
-    Check if file exists and is not empty by confirming that its size is not 0 bytes.
+    Checks if file exists and is not empty by confirming that its size is not 0 bytes.
     """
     return os.path.isfile(file_name) and not os.path.getsize(file_name) == 0
 
 
 def unzip(file):
     """
-    Unzip a .zip file unless unzipped file already exists.
+    Unzips a .zip file unless unzipped file already exists.
     """
     expected_unzipped_file = re.sub('.zip', '', file)
     directory_to_unzip = os.path.dirname((file))
@@ -169,7 +169,7 @@ def gunzip(file):
 
 def decompress_bz2(file):
     """
-    Unzip a .bz2 file unless unzipped file already exists.
+    Unzips a .bz2 file unless unzipped file already exists.
     """
     expected_unzipped_file = re.sub('.bz2', '', file)
     if not file_exists_and_not_empty(expected_unzipped_file):
@@ -181,6 +181,8 @@ def decompress_bz2(file):
 
 def concatenate_small(outfile, *args):
     """
+    Takes an output filename and one or more files as parameters; concatenates files. Note that this will append if
+    the output file already exists.
     e.g. concatenate_small('test.fastq', 'IDX01_S1_L001_R1_001.fastq', 'IDX01_S1_L001_R2_001.fastq').
     """
     with open(outfile, 'a+') as outfile:
@@ -942,7 +944,6 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
     try:
         assert file_exists_and_not_empty(expected_output_file)
         logger.debug(f'A fasta file of new sequences to add already exists for {alignment_name}, skipping....')
-        # warning = False
         trimmed_alignment = AlignIO.read(f'{trimmed_alignment_folder}/{gene_name}.aln.trimmed.fasta', "fasta")
         if new_seqs_longer_than_seeds(trimmed_alignment):
             warning = f'***WARNING*** A newly added sequence is longer than it should be for gene {gene_name}!'
@@ -954,7 +955,6 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
 
         # Check if any transcriptome hit sequence is more than 10% longer than the longest seed sequence and, if it
         # is, realign and re-trim
-        # warning = False
         if new_seqs_longer_than_seeds(trimmed_alignment):
             write_fasta_and_mafft_align(alignment, trimmed, mafft_threads)
             os.remove(trimmed)
@@ -1149,9 +1149,7 @@ def check_and_correct_reading_frames(single_gene_new_target_file, frameshifts_fo
         os.remove(gene_with_uncorrected_frameshifts_file)
 
     try:
-        # target_file_basename = os.path.basename(single_gene_new_target_file)
         seqs_to_retain = []
-        # seqs_with_frameshifts_dict = defaultdict(list)
         sequences = list(SeqIO.parse(single_gene_new_target_file, 'fasta'))
         open_frame_found = True
         for sequence in sequences:
@@ -1244,7 +1242,6 @@ def check_and_correct_reading_frames_multiprocessing(new_target_sequences_folder
 
         seqs_with_frameshifts = []
         for future in future_results:
-            # print(f'\nfuture.result: {future.result()}')
             try:
                 target_file, seqs_with_frameshifts_dict = future.result()
                 seqs_with_frameshifts.append(seqs_with_frameshifts_dict)
@@ -1302,7 +1299,7 @@ def run_exonerate(seqs_with_frameshifts_dict, refs_for_exonerate, single_gene_ne
                                      f'{frameshift_seq_for_exonerate_name} > {exonerate_result_file}'
         try:
             subprocess.run(exonerate_command, shell=True, check=True)
-        except:
+        except: # Sometimes using the '--refine full' option in Exonerate causes an error - presumably a bug?
             try:
                 subprocess.run(exonerate_command_norefine, shell=True, check=True)
             except:
@@ -1338,8 +1335,8 @@ def run_exonerate(seqs_with_frameshifts_dict, refs_for_exonerate, single_gene_ne
 
 def correct_frameshifts(exonerate_result_file):
     """
-    Parses an exonerate results file and attempts to fix frameshifts. Checks if a full open reading
-    frame can be found. If not, exclude sequence.
+    Parses an exonerate results file using SearchIO and attempts to fix frameshifts. Checks if a full open reading
+    frame can be found. If not, excludes the sequence.
     https://biopython.org/DIST/docs/api/Bio.SearchIO.ExonerateIO-module.html
     """
 
@@ -1354,6 +1351,8 @@ def correct_frameshifts(exonerate_result_file):
                     concatenated_single_hsp_alignment_seqs.append(alignment_seq.replace('-', ''))
                 query_range = hit.hsps[0].query_range_all
                 hit_range = hit.hsps[0].hit_range_all
+
+                # If there's only one hit range i.e no introns/frameshift:
                 if len(hit_range) == 1:
                     concatenated_seq = str(concatenated_single_hsp_alignment_seqs[0])
                     num_stop_codons = pad_seq(Seq(concatenated_seq)).translate().count('*')
@@ -1361,6 +1360,8 @@ def correct_frameshifts(exonerate_result_file):
                         logger.debug(f"Couldn't fix frameshifts for {hit_name}, skipping\n")
                         return
                     return concatenated_seq
+
+                # If there more than one hit range (due to e.g. introns/frameshifts, insert Ns between seqs
                 ns_to_insert_list = []
                 for filtered_range_pair_hit in pairwise(query_range):  # Should this actually be hit range, instead? No, that would insert Ns where introns have been removed.
                     left_seq, right_seq = filtered_range_pair_hit
@@ -1380,8 +1381,7 @@ def correct_frameshifts(exonerate_result_file):
                     logger.debug(f"Couldn't fix frameshifts for {hit_name}, skipping\n")
                     return
                 return concatenated_seq
-            else:
-                # print(f'more than 1 hsp for {hit_name}!\n')
+            else: # i.e. If there's more than 1 hsp for the hit
                 hsp_seq_dict = OrderedDict()
                 query_ranges = []
                 hit_ranges = []
@@ -1485,7 +1485,7 @@ def pairwise(iterable):  # CJJ
 
 def create_mega_target_file(final_seqs_folder, outfolder):
     """
-    Writes a megatarget by concatenating the single gene fasta files.
+    Writes a new target file by concatenating the single gene fasta files.
     """
     createfolder(outfolder)
     megatarget_file = f'{outfolder}/BYO_target.fasta'
@@ -1501,7 +1501,7 @@ def create_mega_target_file(final_seqs_folder, outfolder):
 def megatarget_single_gene_alignments(final_seqs_file, output_folder, warnings_folder, collated_warnings, counter, lock,
                                       num_files_to_process, mafft_threads=2):
     """
-    Create single genes alignments from fasta files
+    Create single genes alignments from fasta files.
     """
     basename = os.path.basename(final_seqs_file)
     expected_alignment_file = f'{output_folder}/{re.sub("[.]fasta", ".aln.fasta", basename)}'
@@ -1718,7 +1718,7 @@ def write_report(original_targetfile, transcriptome_folder, new_targetfile_folde
 
     logger.info(f'\n{"*" * 100}\n')
     logger.info(textwrap.fill("This summary report has been written to '18_reports/summary_report.csv', and a per-gene "
-                              "report has been written to '18_reports/report_per_gene.csv'", 98))
+                              "report has been written to '18_reports/report_per_gene.csv'",  98))
     return
 
 

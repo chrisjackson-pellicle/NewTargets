@@ -1563,7 +1563,7 @@ def write_report(original_targetfile, transcriptome_folder, new_targetfile_folde
 
     createfolder(reports_folder)
 
-    transcriptome_names = [re.split('-|[.]', str(os.path.basename(name)))[0] for name in
+    transcriptome_names = [re.split('-|[.]|_renamed', str(os.path.basename(name)))[0] for name in
                            glob.glob(f'{transcriptome_folder}/*renamed.fasta')]
 
     # Recover number of original sequences and gene names

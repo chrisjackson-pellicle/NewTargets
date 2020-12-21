@@ -1369,9 +1369,9 @@ def main():
         sys.exit(f'Select file "{os.path.basename(results.select_file)}" not found in current directory, exiting...')
 
     if file_exists_and_not_empty(results.mega353_file):
-        logger.info(f'Target file "{os.path.basename(results.select_file)}" found!')
+        logger.info(f'Target file "{os.path.basename(results.mega353_file)}" found!')
     else:
-        sys.exit(f'Target file "{os.path.basename(results.select_file)}" not found in current directory, exiting...')
+        sys.exit(f'Target file "{os.path.basename(results.mega353_file)}" not found in current directory, exiting...')
 
     # Parse the files
     control_df = create_control_dataframe()

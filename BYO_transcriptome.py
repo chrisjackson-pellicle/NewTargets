@@ -913,7 +913,6 @@ class ExtendDistanceCalculator(DistanceCalculator):
     pairwise alignments. Supports Biopython 1.78.
     """
     if biopython_version[0:2] <= [1, 77]:
-        print(f'\nUsing Biopython 1.76!')
         cjj = [[1], [0, 1], [0, 0, 1], [0, 0, 0, 1]]
         blastn = [[5], [-4, 5], [-4, -4, 5], [-4, -4, -4, 5]]
         trans = [[6], [-5, 6], [-5, -1, 6], [-1, -5, -5, 6]]
@@ -921,7 +920,6 @@ class ExtendDistanceCalculator(DistanceCalculator):
         dna_models = list(dna_matrices.keys())
         dna_alphabet = ["a", "t", "c", "g"]
     elif biopython_version[0:2] == [1, 78]:
-        print(f'\nUsing Biopython 1.78!')
         CJJ = ['   a  t  c  g\n', 'a  1  0  0  0\n', 't  0  1  0  0\n', 'c  0  0  1  0\n', 'g  0  0  0  1\n']
         cjj_matrix = read_matrix(CJJ)
 

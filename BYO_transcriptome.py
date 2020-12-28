@@ -85,6 +85,14 @@ import zipfile
 import numpy as np
 from operator import itemgetter
 from multiprocessing import Manager
+import pkg_resources
+
+biopython_version = pkg_resources.get_distribution('biopython').version
+biopython_version = [int(value) for value in re.split('[.]', biopython_version)]
+if biopython_version[0:2] == [1, 78]:
+    from Bio.Align import substitution_matrices
+    from Bio.Align.substitution_matrices import Array
+
 
 ########################################################################################################################
 ########################################################################################################################
@@ -273,10 +281,18 @@ def check_dependencies(target_file, transcriptomes_folder, python_threads, exter
     for module in python_modules:
         if module in sys.modules:
             logger.info(f"Imported required python module: {module:8}")
+    # biopython_version = pkg_resources.get_distribution('biopython').version
+    # if biopython_version != '1.76':
+    #     sys.exit(f'This script requires Biopython version 1.76. You are using version {biopython_version}')
 
     # Check hmmsearch eValue is in scientific notation
     if not re.search(r'\b[0-9]+e-[0-9]+\b', hmmsearch_evalue):
         sys.exit(f'The eValue for hmmsearch is not in scientific notation. Value used: {hmmsearch_evalue}')
+
+    # Check length_percentage value is a float of format 0.x
+    if not re.search(r'\b0[.][0-9]+\b', str(length_percentage)):
+        sys.exit(f'The value for length_percentage should be > 0  and <= 1. Value provided'
+                 f': {length_percentage}')
 
     # Print parameters for run
     default_refs = ['Ambtr', 'Arath', 'Orysa']
@@ -851,17 +867,83 @@ def trim_alignments_manually(gene_alignment, output_folder, refs_for_trimmed):
         return expected_output_file
 
 
+def read_matrix(lines, dtype=float):
+    """
+    Adapted from the function read() in __init__.py from Bio.Align.substitution_matrices in Biopython 1.78. This
+    function usually reads a text file containing the substitution matrix; here it reads a list object. Used in the
+    subclass ExtendDistanceCalculator.
+    """
+    header = []
+    for i, line in enumerate(lines):
+        if not line.startswith("#"):
+            break
+        header.append(line[1:].strip())
+    rows = [line.split() for line in lines[i:]]
+    if len(rows[0]) == len(rows[1]) == 2:
+        alphabet = [key for key, value in rows]
+        for key in alphabet:
+            if len(key) > 1:
+                alphabet = tuple(alphabet)
+                break
+        else:
+            alphabet = "".join(alphabet)
+        matrix = Array(alphabet=alphabet, dims=1, dtype=dtype)
+        matrix.update(rows)
+    else:
+        alphabet = rows.pop(0)
+        for key in alphabet:
+            if len(key) > 1:
+                alphabet = tuple(alphabet)
+                break
+        else:
+            alphabet = "".join(alphabet)
+        matrix = Array(alphabet=alphabet, dims=2, dtype=dtype)
+        for letter1, row in zip(alphabet, rows):
+            assert letter1 == row.pop(0)
+            for letter2, word in zip(alphabet, row):
+                matrix[letter1, letter2] = float(word)
+    matrix.header = header
+    return matrix
+
+
 class ExtendDistanceCalculator(DistanceCalculator):
     """
-    Subclass DistanceCalculator, adding a [0,1] based scoring matrix for _pairwise, allowing identity comparisons
-    using self.skip_letters.
+    Subclass DistanceCalculator, adding a [0,1] based scoring matrix for _pairwise, allowing the score to be
+    standardised to a max_score (see TreeConstruction.py) calculated only from non-gap and non-skip_letters positions of
+    pairwise alignments. Supports Biopython 1.78.
     """
-    cjj = [[1], [0, 1], [0, 0, 1], [0, 0, 0, 1]]
-    blastn = [[5], [-4, 5], [-4, -4, 5], [-4, -4, -4, 5]]
-    trans = [[6], [-5, 6], [-5, -1, 6], [-1, -5, -5, 6]]
-    dna_matrices = {"blastn": blastn, "trans": trans, "cjj": cjj}
-    dna_models = list(dna_matrices.keys())
-    dna_alphabet = ["a", "t", "c", "g"]
+    if biopython_version[0:2] <= [1, 77]:
+        print(f'\nUsing Biopython 1.76!')
+        cjj = [[1], [0, 1], [0, 0, 1], [0, 0, 0, 1]]
+        blastn = [[5], [-4, 5], [-4, -4, 5], [-4, -4, -4, 5]]
+        trans = [[6], [-5, 6], [-5, -1, 6], [-1, -5, -5, 6]]
+        dna_matrices = {"blastn": blastn, "trans": trans, "cjj": cjj}
+        dna_models = list(dna_matrices.keys())
+        dna_alphabet = ["a", "t", "c", "g"]
+    elif biopython_version[0:2] == [1, 78]:
+        print(f'\nUsing Biopython 1.78!')
+        CJJ = ['   a  t  c  g\n', 'a  1  0  0  0\n', 't  0  1  0  0\n', 'c  0  0  1  0\n', 'g  0  0  0  1\n']
+        cjj_matrix = read_matrix(CJJ)
+
+        def __init__(self, model="identity", skip_letters=None, cjj_matrix=cjj_matrix):
+            super().__init__(model="identity", skip_letters=skip_letters)
+            self.models.append('cjj')
+
+            """Initialize with a distance model."""
+            if model == "identity":
+                self.scoring_matrix = None
+            elif model in self.models:
+                if model == "blastn":
+                    name = "NUC.4.4"
+                else:
+                    name = model.upper()
+                if model == 'cjj':  # CJJ
+                    self.scoring_matrix = cjj_matrix  # CJJ
+                else:  # CJJ
+                    self.scoring_matrix = substitution_matrices.load(name)
+            else:
+                raise ValueError(
+                    "Model not supported. Available models: " + ", ".join(self.models))
 
 
 def get_graft_alignment(trimmed_dm, trimmed_alignment, sequence_to_graft):
@@ -966,7 +1048,6 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
         # Get the no-gap length of the longest of the seed sequences for this gene
         alignment_read = AlignIO.read(alignment, "fasta")
         longest_seed_seq = max(len(seq.seq.ungap(gap='-')) for seq in alignment_read if re.search('_seed', seq.name))
-
         # calculate a distance matrix for selecting _seed_ to graft with if necessary
         skip_letters = set(letter for sequence in trimmed_alignment for letter in sequence.seq if
                            letter not in ['a', 't', 'c', 'g'])
@@ -1050,6 +1131,7 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
             print(f'\rFinished trimmming and grafting/discarding transcriptome hits for {alignment_name}, '
                   f'{counter.value}/{num_files_to_process}', end='')
         return alignment_name, warning
+
 
 def trim_and_discard_or_graft_multiprocessing(alignments_folder, trimmed_alignment_folder,
                                               alignments_for_grafting_folder, new_sequence_folder, pool_threads,
@@ -1584,7 +1666,8 @@ def write_report(original_targetfile, transcriptome_folder, new_targetfile_folde
         for sequence in seqs:
             new_num_seqs += 1
             for name in transcriptome_names:
-                if re.match(name, sequence.name):
+                prefix = name.split('_')[0]
+                if re.match(prefix, sequence.name):
                     transcriptome_seqs_added[name].append(sequence.name)
 
     # Get stats and write 'report_per_gene.csv' file
@@ -1616,7 +1699,7 @@ def write_report(original_targetfile, transcriptome_folder, new_targetfile_folde
         summary.write(f'Number of sequences in original target_file: {original_num_seqs}\n')
         summary.write(f'Number of sequences in new target_file: {new_num_seqs}\n\n')
         for entry in summary_report:
-            logger.info(f'{entry[0]:>10}{entry[1]:>20}{entry[2]:>20}')
+            logger.info(f'{entry[0]:>20}{entry[1]:>20}{entry[2]:>20}')
             summary.write(f"{','.join(entry)}\n")
         logger.info(f'\n')
         if long_seqs_warnings:
@@ -1723,8 +1806,7 @@ def write_report(original_targetfile, transcriptome_folder, new_targetfile_folde
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('target_file', type=str, help='target fasta file containing nucleotide sequences named '
                                                       'following the convention e.g. >AJFN-4471')
     parser.add_argument('transcriptomes_folder', type=str, help='Folder containing transcriptome files. These can '
@@ -1786,31 +1868,31 @@ def main():
                        results.refs_for_manual_trimming,
                        results.no_n)
 
-    check_files_for_processing(results.target_file,
-                               results.transcriptomes_folder,
-                               results.refs_for_manual_trimming)
-
-    split_targets(results.target_file,
-                  output_folder=folder_01)
-
-    align_targets_multiprocessing(target_gene_folder=folder_01,
-                                  alignments_output_folder=folder_02,
-                                  algorithm='linsi',
-                                  pool_threads=results.python_threads,
-                                  mafft_threads=results.external_program_threads)
-
-    create_hmm_profile_multiprocessing(alignments_folder=folder_02,
-                                       hmm_output_folder=folder_03,
-                                       pool_threads=results.python_threads,
-                                       hmmbuild_threads=results.external_program_threads)
-
-    hmm_vs_transcriptome_multiprocessing(hmmprofile_folder=folder_03,
-                                         transcriptomes_folder=results.transcriptomes_folder,
-                                         hits_output_folder=folder_04, hmm_logs_output_folder=folder_05,
-                                         num_hits_to_recover=results.num_hits_to_recover,
-                                         pool_threads=results.python_threads,
-                                         hmmsearch_threads=results.external_program_threads,
-                                         hmmsearch_evalue=results.hmmsearch_evalue)
+    # check_files_for_processing(results.target_file,
+    #                            results.transcriptomes_folder,
+    #                            results.refs_for_manual_trimming)
+    #
+    # split_targets(results.target_file,
+    #               output_folder=folder_01)
+    #
+    # align_targets_multiprocessing(target_gene_folder=folder_01,
+    #                               alignments_output_folder=folder_02,
+    #                               algorithm='linsi',
+    #                               pool_threads=results.python_threads,
+    #                               mafft_threads=results.external_program_threads)
+    #
+    # create_hmm_profile_multiprocessing(alignments_folder=folder_02,
+    #                                    hmm_output_folder=folder_03,
+    #                                    pool_threads=results.python_threads,
+    #                                    hmmbuild_threads=results.external_program_threads)
+    #
+    # hmm_vs_transcriptome_multiprocessing(hmmprofile_folder=folder_03,
+    #                                      transcriptomes_folder=results.transcriptomes_folder,
+    #                                      hits_output_folder=folder_04, hmm_logs_output_folder=folder_05,
+    #                                      num_hits_to_recover=results.num_hits_to_recover,
+    #                                      pool_threads=results.python_threads,
+    #                                      hmmsearch_threads=results.external_program_threads,
+    #                                      hmmsearch_evalue=results.hmmsearch_evalue)
 
     seqs_with_ns = align_extractions_multiprocessing(
         alignments_folder=folder_02,

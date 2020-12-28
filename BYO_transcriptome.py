@@ -1866,31 +1866,31 @@ def main():
                        results.refs_for_manual_trimming,
                        results.no_n)
 
-    # check_files_for_processing(results.target_file,
-    #                            results.transcriptomes_folder,
-    #                            results.refs_for_manual_trimming)
-    #
-    # split_targets(results.target_file,
-    #               output_folder=folder_01)
-    #
-    # align_targets_multiprocessing(target_gene_folder=folder_01,
-    #                               alignments_output_folder=folder_02,
-    #                               algorithm='linsi',
-    #                               pool_threads=results.python_threads,
-    #                               mafft_threads=results.external_program_threads)
-    #
-    # create_hmm_profile_multiprocessing(alignments_folder=folder_02,
-    #                                    hmm_output_folder=folder_03,
-    #                                    pool_threads=results.python_threads,
-    #                                    hmmbuild_threads=results.external_program_threads)
-    #
-    # hmm_vs_transcriptome_multiprocessing(hmmprofile_folder=folder_03,
-    #                                      transcriptomes_folder=results.transcriptomes_folder,
-    #                                      hits_output_folder=folder_04, hmm_logs_output_folder=folder_05,
-    #                                      num_hits_to_recover=results.num_hits_to_recover,
-    #                                      pool_threads=results.python_threads,
-    #                                      hmmsearch_threads=results.external_program_threads,
-    #                                      hmmsearch_evalue=results.hmmsearch_evalue)
+    check_files_for_processing(results.target_file,
+                               results.transcriptomes_folder,
+                               results.refs_for_manual_trimming)
+
+    split_targets(results.target_file,
+                  output_folder=folder_01)
+
+    align_targets_multiprocessing(target_gene_folder=folder_01,
+                                  alignments_output_folder=folder_02,
+                                  algorithm='linsi',
+                                  pool_threads=results.python_threads,
+                                  mafft_threads=results.external_program_threads)
+
+    create_hmm_profile_multiprocessing(alignments_folder=folder_02,
+                                       hmm_output_folder=folder_03,
+                                       pool_threads=results.python_threads,
+                                       hmmbuild_threads=results.external_program_threads)
+
+    hmm_vs_transcriptome_multiprocessing(hmmprofile_folder=folder_03,
+                                         transcriptomes_folder=results.transcriptomes_folder,
+                                         hits_output_folder=folder_04, hmm_logs_output_folder=folder_05,
+                                         num_hits_to_recover=results.num_hits_to_recover,
+                                         pool_threads=results.python_threads,
+                                         hmmsearch_threads=results.external_program_threads,
+                                         hmmsearch_evalue=results.hmmsearch_evalue)
 
     seqs_with_ns = align_extractions_multiprocessing(
         alignments_folder=folder_02,

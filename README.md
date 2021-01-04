@@ -19,7 +19,7 @@ Bioinformatic sequence recovery for universal target-capture bait kits can be [s
 
 Dependencies for `filter_mega353.py`
 - Python 3.7 or higher
-- [BioPython][4] 1.76
+- [BioPython][4] 1.76 or higher
 - [pandas][11] 1.0.3 or higher
 
 Dependencies for `BYO_transcriptome.py`

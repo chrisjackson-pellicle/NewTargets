@@ -89,7 +89,7 @@ import pkg_resources
 
 biopython_version = pkg_resources.get_distribution('biopython').version
 biopython_version = [int(value) for value in re.split('[.]', biopython_version)]
-if biopython_version[0:2] == [1, 78]:
+if biopython_version[0:2] >= [1, 78]:
     from Bio.Align import substitution_matrices
     from Bio.Align.substitution_matrices import Array
 
@@ -281,16 +281,13 @@ def check_dependencies(target_file, transcriptomes_folder, python_threads, exter
     for module in python_modules:
         if module in sys.modules:
             logger.info(f"Imported required python module: {module:8}")
-    # biopython_version = pkg_resources.get_distribution('biopython').version
-    # if biopython_version != '1.76':
-    #     sys.exit(f'This script requires Biopython version 1.76. You are using version {biopython_version}')
 
     # Check hmmsearch eValue is in scientific notation
     if not re.search(r'\b[0-9]+e-[0-9]+\b', hmmsearch_evalue):
         sys.exit(f'The eValue for hmmsearch is not in scientific notation. Value used: {hmmsearch_evalue}')
 
-    # Check length_percentage value is a float of format 0.x
-    if not re.search(r'\b0[.][0-9]+\b', str(length_percentage)):
+    # Check length_percentage value is a float between 0 and 1
+    if not 0 < float(length_percentage) <= 1.0:
         sys.exit(f'The value for length_percentage should be > 0  and <= 1. Value provided'
                  f': {length_percentage}')
 
@@ -838,7 +835,7 @@ def trim_alignments_manually(gene_alignment, output_folder, refs_for_trimmed):
         longest_ref_name = max(seed_names_and_lengths, key=itemgetter(1))[0]
         reference_index_count = 0
         trimmed_ref_found = False
-        for sequence in untrimmed_alignment:
+        for sequence in untrimmed_alignment:  # Change to enumerate
             if sequence.name == longest_ref_name:
                 trimmed_ref_found = True
                 break
@@ -919,7 +916,7 @@ class ExtendDistanceCalculator(DistanceCalculator):
         dna_matrices = {"blastn": blastn, "trans": trans, "cjj": cjj}
         dna_models = list(dna_matrices.keys())
         dna_alphabet = ["a", "t", "c", "g"]
-    elif biopython_version[0:2] == [1, 78]:
+    elif biopython_version[0:2] >= [1, 78]:
         CJJ = ['   a  t  c  g\n', 'a  1  0  0  0\n', 't  0  1  0  0\n', 'c  0  0  1  0\n', 'g  0  0  0  1\n']
         cjj_matrix = read_matrix(CJJ)
 
@@ -944,26 +941,33 @@ class ExtendDistanceCalculator(DistanceCalculator):
                     "Model not supported. Available models: " + ", ".join(self.models))
 
 
-def get_graft_alignment(trimmed_dm, trimmed_alignment, sequence_to_graft):
+def get_graft_alignment(trimmed_dm, trimmed_alignment, sequence_to_graft, graft_closest=False):
     """
     For a given sequence, identifies the closest identity sequence in a given alignment. Returns an alignment
     of both sequences, and the name of the sequence used from grafting.
     """
-    dm = trimmed_dm
-    names = dm.names
-    distance_values = dm[sequence_to_graft.name]
-    sorted_distance_values = sorted(distance_values, key=float)
-    for distance in sorted_distance_values:
-        index = dm[sequence_to_graft.name].index(distance)
-        name = names[index]
-        if re.search('_seed', name):
-            for sequence in trimmed_alignment:
-                if sequence.name == name:
-                    seq_to_graft_with = sequence
-            break
-    logger.debug(f'Sequence with highest identity to {sequence_to_graft.name} is {seq_to_graft_with.name}, grafting...')
-    graft_alignment = MultipleSeqAlignment([sequence_to_graft, seq_to_graft_with])
-    return graft_alignment, seq_to_graft_with.name
+    if graft_closest:
+        dm = trimmed_dm
+        names = dm.names
+        distance_values = dm[sequence_to_graft.name]
+        sorted_distance_values = sorted(distance_values, key=float)
+        for distance in sorted_distance_values:
+            index = dm[sequence_to_graft.name].index(distance)
+            name = names[index]
+            if re.search('_seed', name):
+                for sequence in trimmed_alignment:
+                    if sequence.name == name:
+                        seq_to_graft_with = sequence
+                break
+        logger.debug(f'Sequence with highest identity to {sequence_to_graft.name} is '
+                     f'{seq_to_graft_with.name}, grafting...')
+        graft_alignment = MultipleSeqAlignment([sequence_to_graft, seq_to_graft_with])
+        return graft_alignment, seq_to_graft_with.name
+    else:
+        longest_seed_seq = max((seq for seq in trimmed_alignment if re.search('_seed', seq.name)),
+                               key=lambda x: len(x.seq.ungap(gap='-')))
+        graft_alignment = MultipleSeqAlignment([sequence_to_graft, longest_seed_seq])
+        return graft_alignment, longest_seed_seq.name
 
 
 def write_fasta_and_mafft_align(original_alignment, trimmed_alignment, mafft_threads):
@@ -1002,7 +1006,7 @@ def new_seqs_longer_than_seeds(alignment_object):
 
 def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_for_grafting_folder, new_sequence_folder,
                               length_percentage, counter, lock, num_files_to_process, refs_for_trimmed,
-                              discard_short=False, mafft_threads=1):
+                              discard_short=False, mafft_threads=1, graft_closest=False):
     """
     Trims alignment to the longest of a given set of original target taxa (seed_Arath, seed_Ambtr or seed_
     Orysa from the 353Angiosperm target file by default, or user provided).
@@ -1044,16 +1048,17 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
                 warning = f'***WARNING*** A newly added sequence is longer than it should be for gene {gene_name}!'
 
         # Get the no-gap length of the longest of the seed sequences for this gene
-        alignment_read = AlignIO.read(alignment, "fasta")
-        longest_seed_seq = max(len(seq.seq.ungap(gap='-')) for seq in alignment_read if re.search('_seed', seq.name))
+        longest_seed_seq = max(len(seq.seq.ungap(gap='-')) for seq in trimmed_alignment if re.search('_seed', seq.name))
+
         # calculate a distance matrix for selecting _seed_ to graft with if necessary
         skip_letters = set(letter for sequence in trimmed_alignment for letter in sequence.seq if
                            letter not in ['a', 't', 'c', 'g'])
         my_calculator = ExtendDistanceCalculator('cjj', skip_letters=''.join(skip_letters))
-
-        if not discard_short:
+        if not discard_short and graft_closest:
             logger.debug(f'Calculating distance matrix for trimmed alignment {alignment_name}')
             trimmed_dm = my_calculator.get_distance(trimmed_alignment)
+        else:
+            trimmed_dm = None
 
         # Discard or graft newly added sequences if they fall beneath a percentage length cut-off
         trimmed_seqs_to_write = []
@@ -1070,13 +1075,14 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
                 else:
                     if length_fraction < length_percentage:
                         new_sequence_to_graft = trimmed_seq
-                        logger.debug(f'Sequence {trimmed_seq.name} is {trimmed_length} bases long, less than '
+                        logger.debug(f'Sequence {trimmed_seq.name}  is {trimmed_length} bases long, less than '
                                      f'{length_percentage} of the longest target sequence ({longest_seed_seq}) '
                                      f'for this gene. Grafting sequence with closest identity...')
                         grafted_gene_directory = f'{alignments_for_grafting_folder}/{gene_name}'
                         createfolder(grafted_gene_directory)
                         graft_alignment, seq_to_graft_name = get_graft_alignment(trimmed_dm, trimmed_alignment,
-                                                                                 new_sequence_to_graft)
+                                                                                 new_sequence_to_graft,
+                                                                                 graft_closest=graft_closest)
 
                         with open(f'{grafted_gene_directory}/{trimmed_seq.name}.aln.fasta', 'w') \
                                 as outfile:
@@ -1126,14 +1132,15 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
     finally:
         with lock:
             counter.value += 1
-            print(f'\rFinished trimmming and grafting/discarding transcriptome hits for {alignment_name}, '
+            print(f'\rFinished trimming and grafting/discarding transcriptome hits for {alignment_name}, '
                   f'{counter.value}/{num_files_to_process}', end='')
         return alignment_name, warning
 
 
 def trim_and_discard_or_graft_multiprocessing(alignments_folder, trimmed_alignment_folder,
                                               alignments_for_grafting_folder, new_sequence_folder, pool_threads,
-                                              mafft_threads, length_percentage, refs_for_trimmed, discard_short=False):
+                                              mafft_threads, length_percentage, refs_for_trimmed,
+                                              discard_short=False, graft_closest=False):
     """
     Run trim_and_discard_or_graft for each alignment via function <trim_and_discard_or_graft> via multiprocessing.
     """
@@ -1149,7 +1156,8 @@ def trim_and_discard_or_graft_multiprocessing(alignments_folder, trimmed_alignme
         future_results = [pool.submit(trim_and_discard_or_graft, alignment, trimmed_alignment_folder,
                                       alignments_for_grafting_folder, new_sequence_folder, length_percentage, counter,
                                       lock, num_files_to_process=len(alignments), refs_for_trimmed=refs_for_trimmed,
-                                      discard_short=discard_short, mafft_threads=mafft_threads)
+                                      discard_short=discard_short, mafft_threads=mafft_threads,
+                                      graft_closest=graft_closest)
                           for alignment in alignments]
         for future in future_results:
             future.add_done_callback(done_callback)
@@ -1363,6 +1371,8 @@ def run_exonerate(seqs_with_frameshifts_dict, refs_for_exonerate, single_gene_ne
                                   if re.match(pattern, seq.name)]
     longest_ref_name = max(ref_names_seqs_and_lengths, key=itemgetter(2))[0]
     longest_ref_seq_trans = pad_seq(max(ref_names_seqs_and_lengths, key=itemgetter(2))[1]).translate()
+    longest_ref_seq_trans.seq = Seq(re.sub('B|Z|J|U|O', 'X', str(longest_ref_seq_trans.seq)))  # Exonerate doesn't
+    # like some extended IUPAC codes
     prot_for_exonerate_name = f'{gene_exonerate_folder}/{gene_name}_{longest_ref_name}_protein.fasta'
     with open(prot_for_exonerate_name, 'w') as prot:
         SeqIO.write(longest_ref_seq_trans, prot, 'fasta')
@@ -1379,7 +1389,7 @@ def run_exonerate(seqs_with_frameshifts_dict, refs_for_exonerate, single_gene_ne
                                      f'{frameshift_seq_for_exonerate_name} > {exonerate_result_file}'
         try:
             subprocess.run(exonerate_command, shell=True, check=True)
-        except: # Sometimes using the '--refine full' option in Exonerate causes an error - presumably a bug?
+        except:  # Sometimes using the '--refine full' option in Exonerate causes an error - presumably a bug?
             try:
                 subprocess.run(exonerate_command_norefine, shell=True, check=True)
             except:
@@ -1816,7 +1826,7 @@ def parse_arguments():
     parser.add_argument("-external_program_threads", type=int, help='number of threads for HMMer, mafft, default is '
                                                                     '1', default='1', metavar='<integer>')
     parser.add_argument("-length_percentage", type=float, help='length percentage cut-off for grafting or discarding, '
-                                                               'default is 0.85', default='0.85', metavar='<float>')
+                                                               'default is 1.00', default='1.00', metavar='<float>')
     parser.add_argument("-hmmsearch_evalue", type=str, help='Evalue threshold for searching transcriptomes with HMM'
                                                             'profiles, default is 1e-50', default='1e-50',
                         metavar='<number in scientific notation; default is 1e-50>')
@@ -1827,6 +1837,12 @@ def parse_arguments():
                         default=False)
     parser.add_argument("-skip_exonerate_frameshift_fix", dest="no_exonerate_fix", action='store_true',
                         help="Do not use Exonerate to fix frameshifts; discard such sequences instead", default=False)
+    parser.add_argument("-graft_closest", dest="graft_closest", action='store_true',
+                        help="If grafting short sequences (default), graft with the highest identity original "
+                             "target file sequence rather than the longest original sequence", default=False)
+    parser.add_argument("-discard_short", dest="discard_short", action='store_true',
+                        help="Discards transcriptome hits beneath the -length_percentage value rather than grafting",
+                        default=False)
     # parser.print_help()
     results = parser.parse_args()
     return results
@@ -1902,7 +1918,6 @@ def main():
         pool_threads=results.python_threads,
         no_n=results.no_n)
 
-
     long_seqs_warnings = trim_and_discard_or_graft_multiprocessing(alignments_folder=folder_06,
                                                                    trimmed_alignment_folder=folder_08,
                                                                    alignments_for_grafting_folder=folder_09,
@@ -1911,7 +1926,8 @@ def main():
                                                                    mafft_threads=results.external_program_threads,
                                                                    length_percentage=results.length_percentage,
                                                                    refs_for_trimmed=results.refs_for_manual_trimming,
-                                                                   discard_short=False)
+                                                                   discard_short=results.discard_short,
+                                                                   graft_closest=results.graft_closest)
 
     fasta_files = [file for file in glob.glob(f'{folder_01}/*.fasta')]
     for counter, fasta_file in enumerate(fasta_files, 1):
@@ -1927,7 +1943,6 @@ def main():
         refs_for_exonerate=results.refs_for_manual_trimming,
         pool_threads=results.python_threads,
         skip_fix_frameshifts_with_exonerate=results.no_exonerate_fix)
-
 
     megatarget_single_gene_alignments_multiprocessing(final_seqs_folder=folder_11,
                                                       output_folder=folder_15,

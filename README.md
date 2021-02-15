@@ -91,6 +91,7 @@ python BYO_transcriptome.py [-h] [-num_hits_to_recover <integer>]
                             [-hmmsearch_evalue <number in scientific notation; default is 1e-50>]
                             [-trim_to_refs <taxon_name>] [-no_n]
                             [-skip_exonerate_frameshift_fix]
+                            [-discard_short]
                             target_file transcriptomes_folder
 ```
 Example command line:

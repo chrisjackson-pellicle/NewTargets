@@ -50,6 +50,7 @@ NOTE:
 """
 
 import sys
+
 try:
     import Bio
 except ImportError:
@@ -93,7 +94,6 @@ if biopython_version[0:2] >= [1, 78]:
     from Bio.Align import substitution_matrices
     from Bio.Align.substitution_matrices import Array
 
-
 ########################################################################################################################
 ########################################################################################################################
 # Get current working directory and host name
@@ -126,6 +126,7 @@ f_handler.setFormatter(f_format)
 # Add handlers to the logger
 logger.addHandler(c_handler)
 logger.addHandler(f_handler)
+
 
 ########################################################################################################################
 ########################################################################################################################
@@ -224,7 +225,7 @@ def done_callback(future_returned):
 
 
 def check_dependencies(target_file, transcriptomes_folder, python_threads, external_program_threads, length_percentage,
-                       hmmsearch_evalue, refs_for_manual_trimming, no_n):
+                       hmmsearch_evalue, refs_for_manual_trimming, no_n, discard_short):
     """
     Checks Python version, successful import of third party Python modules, the presence of external executables, and
     HMMER, Exonerate and MAFFT versions. Prints and logs the run parameters.
@@ -302,15 +303,26 @@ def check_dependencies(target_file, transcriptomes_folder, python_threads, exter
     else:
         refs_for_manual_trimming = default_refs
 
-    logger.info(f'\n{"*"*28} Running analysis with the following settings: {"*"*29}\n\n'
-                f'{"Target file:":<50}{target_file:<50}\n'
-                f'{"Transcriptomes folder:":<50}{transcriptomes_folder:<50}\n'
-                f'{"Python multiprocessing pool threads:":<50}{python_threads:<50}\n'
-                f'{"External program threads:":<50}{external_program_threads:<50}\n'
-                f'{"Length percentage cut-off for grafting:":<50}{length_percentage:<50}\n'
-                f'{"eValue for hmmsearch:":<50}{hmmsearch_evalue:<50}\n'
-                f'{"References for trimming transcriptomes hits:":<50}{", ".join(refs_for_manual_trimming):<50}\n'
-                f'{"Remove all n characters from transcriptome hits:":<50}{str(no_n):<50}\n')
+    if not discard_short:
+        logger.info(f'\n{"*" * 28} Running analysis with the following settings: {"*" * 29}\n\n'
+                    f'{"Target file:":<50}{target_file:<50}\n'
+                    f'{"Transcriptomes folder:":<50}{transcriptomes_folder:<50}\n'
+                    f'{"Python multiprocessing pool threads:":<50}{python_threads:<50}\n'
+                    f'{"External program threads:":<50}{external_program_threads:<50}\n'
+                    f'{"Length percentage cut-off for grafting:":<50}{length_percentage:<50}\n'
+                    f'{"eValue for hmmsearch:":<50}{hmmsearch_evalue:<50}\n'
+                    f'{"References for trimming transcriptome hits:":<50}{", ".join(refs_for_manual_trimming):<50}\n'
+                    f'{"Remove all n characters from transcriptome hits:":<50}{str(no_n):<50}\n')
+    else:
+        logger.info(f'\n{"*" * 28} Running analysis with the following settings: {"*" * 29}\n\n'
+                    f'{"Target file:":<50}{target_file:<50}\n'
+                    f'{"Transcriptomes folder:":<50}{transcriptomes_folder:<50}\n'
+                    f'{"Python multiprocessing pool threads:":<50}{python_threads:<50}\n'
+                    f'{"External program threads:":<50}{external_program_threads:<50}\n'
+                    f'{"Length percentage cut-off for discarding hits:":<50}{length_percentage:<50}\n'
+                    f'{"eValue for hmmsearch:":<50}{hmmsearch_evalue:<50}\n'
+                    f'{"References for trimming transcriptome hits:":<50}{", ".join(refs_for_manual_trimming):<50}\n'
+                    f'{"Remove all n characters from transcriptome hits:":<50}{str(no_n):<50}\n')
     return
 
 
@@ -517,7 +529,7 @@ def align_targets_multiprocessing(target_gene_folder, alignments_output_folder, 
     logger.info(f'\n{len(alignment_list)} alignments generated from {len(future_results)} fasta files.\n')
     if len(target_genes) != len(alignment_list):
         sys.exit(f'Only {len(alignment_list)} alignments were generated from {len(target_genes)} fasta files, check '
-                  f'for errors!')
+                 f'for errors!')
 
 
 def create_hmm_profile(alignment, output_folder, counter, lock, num_files_to_process, hmmbuild_threads=2):
@@ -654,6 +666,23 @@ def hmm_vs_transcriptome_multiprocessing(hmmprofile_folder, transcriptomes_folde
         wait(future_results, return_when="ALL_COMPLETED")
 
 
+def remove_empty_seqs_aln(alignment_fasta_file):
+    """
+    Removes any empty sequences from an alignment.
+    """
+    seqs_to_keep = []
+    aln_obj = AlignIO.read(alignment_fasta_file, 'fasta')
+    for seq in aln_obj:
+        ungapped_seq_length = len(seq.seq.ungap('-'))
+        if not ungapped_seq_length == 0:
+            seqs_to_keep.append(seq)
+        else:
+            logger.debug(f'Length of seq {seq.name} in alignment {alignment_fasta_file} is zero - HMM hit could not '
+                         f'be aligned! Discarding...')
+    alignment_empty_seqs_removed = MultipleSeqAlignment(seqs_to_keep)
+    AlignIO.write(alignment_empty_seqs_removed, alignment_fasta_file, 'fasta')
+
+
 def align_extractions_single_reference(single_gene_alignment, single_gene_alignment_object, concatenated_hits,
                                        mafft_threads, single_gene_alignment_with_hits_name):
     """
@@ -678,6 +707,7 @@ def align_extractions_single_reference(single_gene_alignment, single_gene_alignm
         stdout, stderr = mafft_cline()
         with open(single_gene_alignment_with_hits_name, 'w') as alignment_file:
             alignment_file.write(stdout)
+        remove_empty_seqs_aln(single_gene_alignment_with_hits_name)
         os.remove(single_gene_alignment)
 
     elif not file_exists_and_not_empty(concatenated_hits):  # i.e. if there are no transcriptome hits.
@@ -752,6 +782,7 @@ def align_extractions(single_gene_alignment, output_folder, hit_folder, concaten
             stdout, stderr = mafft_cline()
             with open(single_gene_alignment_with_hits_name, 'w') as alignment_file:
                 alignment_file.write(stdout)
+            remove_empty_seqs_aln(single_gene_alignment_with_hits_name)
     finally:
         with lock:
             counter.value += 1
@@ -805,8 +836,8 @@ def align_extractions_multiprocessing(alignments_folder, output_folder, hit_fold
 
 def trim_alignments_manually(gene_alignment, output_folder, refs_for_trimmed):
     """
-    Takes a fasta alignment file as input, trims it to the longest of sequences from default (_seed_Arath, _seed_Ambtr,
-    _seed_Orysa), or a user provided list of taxon names.
+    Takes a fasta alignment file as input, trims it to the longest of the sequences from default list (_seed_Arath,
+    _seed_Ambtr, _seed_Orysa), or a user provided list of taxon names.
     """
     try:
         commandline_refs_for_trimming = list(sorted(set(refs_for_trimmed)))
@@ -941,37 +972,39 @@ class ExtendDistanceCalculator(DistanceCalculator):
                     "Model not supported. Available models: " + ", ".join(self.models))
 
 
-def get_graft_alignment(trimmed_dm, trimmed_alignment, sequence_to_graft, graft_closest=False):
+def get_graft_alignment(trimmed_dm, trimmed_alignment, transcriptome_hit_to_graft, graft_closest=False):
     """
-    For a given sequence, identifies the closest identity sequence in a given alignment. Returns an alignment
-    of both sequences, and the name of the sequence used from grafting.
+    For a given sequence, identifies either the longest original sequence (i.e. with the prefix _seed_) in a given
+    alignment, or the closest identity sequence. Returns an alignment of both sequences, and the name of the sequence
+    used for grafting.
     """
     if graft_closest:
         dm = trimmed_dm
         names = dm.names
-        distance_values = dm[sequence_to_graft.name]
+        distance_values = dm[transcriptome_hit_to_graft.name]
         sorted_distance_values = sorted(distance_values, key=float)
         for distance in sorted_distance_values:
-            index = dm[sequence_to_graft.name].index(distance)
+            index = dm[transcriptome_hit_to_graft.name].index(distance)
             name = names[index]
             if re.search('_seed', name):
                 for sequence in trimmed_alignment:
                     if sequence.name == name:
-                        seq_to_graft_with = sequence
+                        seq_to_graft_from = sequence
                 break
-        logger.debug(f'Sequence with highest identity to {sequence_to_graft.name} is '
-                     f'{seq_to_graft_with.name}, grafting...')
-        graft_alignment = MultipleSeqAlignment([sequence_to_graft, seq_to_graft_with])
-        return graft_alignment, seq_to_graft_with.name
+        logger.debug(f'Sequence with highest identity to {transcriptome_hit_to_graft.name} is {seq_to_graft_from.name}')
+        graft_alignment = MultipleSeqAlignment([transcriptome_hit_to_graft, seq_to_graft_from])
+        return graft_alignment, seq_to_graft_from.name
     else:
         longest_seed_seq = max((seq for seq in trimmed_alignment if re.search('_seed', seq.name)),
                                key=lambda x: len(x.seq.ungap(gap='-')))
-        graft_alignment = MultipleSeqAlignment([sequence_to_graft, longest_seed_seq])
+        graft_alignment = MultipleSeqAlignment([transcriptome_hit_to_graft, longest_seed_seq])
         return graft_alignment, longest_seed_seq.name
 
 
 def write_fasta_and_mafft_align(original_alignment, trimmed_alignment, mafft_threads):
-    """Realign a given alignment using mafft"""
+    """
+    Realign a given alignment using mafft. Overwrites the original alignment (new alignment will be trimmed again).
+    """
     seqs = []
     with open(f'{trimmed_alignment}_tmp.fasta', 'w') as tmp:
         for seq in AlignIO.read(trimmed_alignment, 'fasta'):
@@ -985,11 +1018,12 @@ def write_fasta_and_mafft_align(original_alignment, trimmed_alignment, mafft_thr
     os.remove(f'{trimmed_alignment}_tmp.fasta')
     with open(original_alignment, 'w') as alignment_file:
         alignment_file.write(stdout)
+    remove_empty_seqs_aln(original_alignment)
 
 
 def new_seqs_longer_than_seeds(alignment_object):
     """
-    Returns true if the longest of the newly added sequences (i.e. those that do not have the prefix _seed_) is more
+    Returns True if the longest of the newly added sequences (i.e. those that do not have the prefix _seed_) is more
     than 1.1x the length of the longest seed sequence.
     """
     longest_seed = max(len(seq.seq.ungap(gap='-')) for seq in alignment_object if re.search('_seed', seq.name))
@@ -1004,14 +1038,49 @@ def new_seqs_longer_than_seeds(alignment_object):
         return False
 
 
+def graft(alignment_object, grafted_seq_name, grafted_seq_description, gene_name):
+    """
+    Takes an alignment object and grafts the first sequence (i.e. a transcriptome hit) with any additional 5' and 3'
+    sequence from the second sequence (i.e a reference sequence). Returns False if there is no additional sequence to
+    graft (i.e. the length difference between the transcriptome hit and the chosen reference is due to internal indels)
+    """
+    align_array = np.array([rec.seq for rec in alignment_object])
+    grafted_seq_5prime = []
+    grafted_seq_3prime = []
+
+    for position in align_array.T:  # transpose
+        if '-' in position[0] and '-' in position[1]:  # skip over alignment if neither sequence yet
+            continue
+        elif '-' in position[0]:  # i.e. the alignment only has sequence from seq_to_graft
+            grafted_seq_5prime.append(position[1])
+        else:
+            break
+    for position in np.flipud(align_array.T):
+        if '-' in position[0] and '-' in position[1]:  # skip over alignment if neither sequence yet
+            continue
+        elif '-' in position[0]:  # i.e. the alignment only has sequence from seq_to_graft
+            grafted_seq_3prime.insert(0, position[1])
+        else:
+            break
+    grafted_seq_5prime_concat = ''.join(letter for letter in grafted_seq_5prime)
+    grafted_seq_3prime_concat = ''.join(letter for letter in grafted_seq_3prime)
+    final_grafted_seq = ''.join([grafted_seq_5prime_concat, str(alignment_object[0].seq.ungap(gap='-')),
+                                 grafted_seq_3prime_concat])
+    final_grafted_seq_obj = SeqRecord(Seq(final_grafted_seq), id=gene_name, name=grafted_seq_name,
+                                      description=grafted_seq_description)
+    if not grafted_seq_5prime_concat and not grafted_seq_3prime_concat:
+        return False
+    return final_grafted_seq_obj
+
+
 def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_for_grafting_folder, new_sequence_folder,
                               length_percentage, counter, lock, num_files_to_process, refs_for_trimmed,
-                              discard_short=False, mafft_threads=1, graft_closest=False):
+                              discard_short=False, mafft_threads=1):
     """
     Trims alignment to the longest of a given set of original target taxa (seed_Arath, seed_Ambtr or seed_
     Orysa from the 353Angiosperm target file by default, or user provided).
 
-    Checks whether newly added sequences are less than <user_provided>% length (default 0.85) of the longest
+    Checks whether newly added sequences are less than <user_provided>% length (default 1.00) of the longest
     untrimmed original target sequence. If so, the new sequence is either discarded or grafted with the closest id
     sequence, calculated via a distance matrix. NOTE: this step is necessary for the Exonerate step of HybPiper,
     where SPAdes contigs are compared to the sequence with the highest BWA alignment score, and we don't want truncated
@@ -1033,8 +1102,6 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
             warning = f'***WARNING*** A newly added sequence is longer than it should be for gene {gene_name}!'
     except AssertionError:
         trimmed = trim_alignments_manually(alignment, trimmed_alignment_folder, refs_for_trimmed)
-
-        # Read the trimmed alignment
         trimmed_alignment = AlignIO.read(trimmed, "fasta")
 
         # Check if any transcriptome hit sequence is more than 10% longer than the longest seed sequence and, if it
@@ -1054,7 +1121,8 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
         skip_letters = set(letter for sequence in trimmed_alignment for letter in sequence.seq if
                            letter not in ['a', 't', 'c', 'g'])
         my_calculator = ExtendDistanceCalculator('cjj', skip_letters=''.join(skip_letters))
-        if not discard_short and graft_closest:
+
+        if not discard_short:
             logger.debug(f'Calculating distance matrix for trimmed alignment {alignment_name}')
             trimmed_dm = my_calculator.get_distance(trimmed_alignment)
         else:
@@ -1080,39 +1148,39 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
                                      f'for this gene. Grafting sequence with closest identity...')
                         grafted_gene_directory = f'{alignments_for_grafting_folder}/{gene_name}'
                         createfolder(grafted_gene_directory)
-                        graft_alignment, seq_to_graft_name = get_graft_alignment(trimmed_dm, trimmed_alignment,
-                                                                                 new_sequence_to_graft,
-                                                                                 graft_closest=graft_closest)
 
-                        with open(f'{grafted_gene_directory}/{trimmed_seq.name}.aln.fasta', 'w') \
-                                as outfile:
+                        # Graft with closest identity _seed_ sequence first:
+                        graft_alignment, closest_seq_to_graft_name = get_graft_alignment(trimmed_dm,
+                                                                                         trimmed_alignment,
+                                                                                         new_sequence_to_graft,
+                                                                                         graft_closest=True)
+
+                        with open(f'{grafted_gene_directory}/{trimmed_seq.name}.aln_closest.fasta', 'w') as outfile:
                             AlignIO.write(graft_alignment, outfile, 'fasta')
-                        align_array = np.array([rec.seq for rec in graft_alignment])
-                        grafted_seq_5prime = []
-                        grafted_seq_3prime = []
-                        grafted_name = f'{trimmed_seq.name}{seq_to_graft_name}'
 
-                        for position in align_array.T:  # transpose
-                            if '-' in position[0] and '-' in position[1]:  # skip over alignment if neither sequence yet
-                                continue
-                            elif '-' in position[0]:  # i.e. the alignment only has sequence from seq_to_graft
-                                grafted_seq_5prime.append(position[1])
-                            else:
-                                break
-                        for position in np.flipud(align_array.T):
-                            if '-' in position[0] and '-' in position[1]:  # skip over alignment if neither sequence yet
-                                continue
-                            elif '-' in position[0]:  # i.e. the alignment only has sequence from seq_to_graft
-                                grafted_seq_3prime.insert(0, position[1])
-                            else:
-                                break
-                        grafted_seq_5prime_concat = ''.join(letter for letter in grafted_seq_5prime)
-                        grafted_seq_3prime_concat = ''.join(letter for letter in grafted_seq_3prime)
-                        final_grafted_seq = ''.join([grafted_seq_5prime_concat, str(trimmed_seq.seq.ungap(gap='-')),
-                                                     grafted_seq_3prime_concat])
-                        final_grafted_seq_obj = SeqRecord(Seq(final_grafted_seq), id=gene_name, name=grafted_name,
-                                                          description="grafted sequence")
-                        trimmed_seqs_to_write.append(final_grafted_seq_obj)
+                        grafted_name_closest = f'{trimmed_seq.name}{closest_seq_to_graft_name}'
+                        final_grafted_seq_obj = graft(graft_alignment, grafted_name_closest, "grafted sequence closest",
+                                                      gene_name)
+                        if not final_grafted_seq_obj:
+                            final_grafted_seq_obj = new_sequence_to_graft
+
+                        # Graft with longest _seed_ sequence, if necessary:
+                        if len(final_grafted_seq_obj.seq.ungap(gap='-')) < longest_seed_seq:  # Not using a ratio here,
+                            # direct comparison.
+                            graft_alignment, longest_seq_to_graft_name = get_graft_alignment(trimmed_dm,
+                                                                                             trimmed_alignment,
+                                                                                             new_sequence_to_graft,
+                                                                                             graft_closest=False)
+                            with open(f'{grafted_gene_directory}/{trimmed_seq.name}.aln_longest.fasta', 'w') as outfile:
+                                AlignIO.write(graft_alignment, outfile, 'fasta')
+                            grafted_name_longest = f'{trimmed_seq.name}{longest_seq_to_graft_name}'
+                            final_grafted_seq_obj = graft(graft_alignment, grafted_name_longest,
+                                                          "grafted sequence longest", gene_name)
+                            if not final_grafted_seq_obj:
+                                final_grafted_seq_obj = new_sequence_to_graft
+                            trimmed_seqs_to_write.append(final_grafted_seq_obj)
+                        elif len(final_grafted_seq_obj) >= longest_seed_seq:
+                            trimmed_seqs_to_write.append(final_grafted_seq_obj)
                     else:
                         trimmed_seqs_to_write.append(trimmed_seq)
 
@@ -1123,12 +1191,16 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
                 for sequence in trimmed_seqs_to_write:
                     sequence.seq = sequence.seq.ungap(gap='-')
                     transcriptome_id = re.split('-|_', sequence.name)[2]
-                    grafted_gene_id = ''.join(re.split('_', sequence.name)[-1])
-                    if sequence.description == "grafted sequence":
+                    if sequence.description == "grafted sequence closest":
+                        grafted_gene_id = ''.join(re.split('_', sequence.name)[-1])
+                        sequence.name = f'{transcriptome_id}_grafted_with_{grafted_gene_id}'
+                    elif sequence.description == "grafted sequence longest":
+                        # grafted_gene_id = f"{re.split('_', sequence.name)[-3]}_{re.split('_', sequence.name)[-1]}"
+                        grafted_gene_id = ''.join(re.split('_', sequence.name)[-1])
                         sequence.name = f'{transcriptome_id}_grafted_with_{grafted_gene_id}'
                     else:
                         sequence.name = f'{transcriptome_id}-{gene_name}'
-                    seqfile.write(f'>{sequence.name}\n{sequence.seq}\n')
+                    seqfile.write(f'>{sequence.name} {sequence.description}\n{sequence.seq}\n')
     finally:
         with lock:
             counter.value += 1
@@ -1140,7 +1212,7 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
 def trim_and_discard_or_graft_multiprocessing(alignments_folder, trimmed_alignment_folder,
                                               alignments_for_grafting_folder, new_sequence_folder, pool_threads,
                                               mafft_threads, length_percentage, refs_for_trimmed,
-                                              discard_short=False, graft_closest=False):
+                                              discard_short=False):
     """
     Run trim_and_discard_or_graft for each alignment via function <trim_and_discard_or_graft> via multiprocessing.
     """
@@ -1156,8 +1228,7 @@ def trim_and_discard_or_graft_multiprocessing(alignments_folder, trimmed_alignme
         future_results = [pool.submit(trim_and_discard_or_graft, alignment, trimmed_alignment_folder,
                                       alignments_for_grafting_folder, new_sequence_folder, length_percentage, counter,
                                       lock, num_files_to_process=len(alignments), refs_for_trimmed=refs_for_trimmed,
-                                      discard_short=discard_short, mafft_threads=mafft_threads,
-                                      graft_closest=graft_closest)
+                                      discard_short=discard_short, mafft_threads=mafft_threads)
                           for alignment in alignments]
         for future in future_results:
             future.add_done_callback(done_callback)
@@ -1210,9 +1281,41 @@ def create_new_targets_file(gene_fasta_file, seqs_to_add_folder, seqs_to_write_f
                 SeqIO.write(seq, to_write, 'fasta')
 
 
+def check_frameshifts(sequence):
+    """
+    Checks for frameshifts in a BioPython Seq object. Returns a seq object without frameshifts, or None.
+    """
+
+    num_stop_codons = pad_seq(sequence.seq).translate().count('*')
+    if num_stop_codons == 0:
+        return sequence
+    elif num_stop_codons == 1 and re.search('[*]', str(pad_seq(sequence.seq).translate())[-10:]):
+        logger.debug(f'Only one stop codon within the last 10 codons for seq for {sequence.name},\n '
+                     f'{pad_seq(sequence.seq).translate()}')
+        return sequence
+    elif num_stop_codons > 0:
+        frames_with_stop_codons = 0
+        for frame_start in [1, 2]:
+            num_stop_codons = pad_seq(sequence[frame_start:].seq).translate().count('*')
+            if not num_stop_codons:
+                sequence = sequence[frame_start:]
+                return sequence
+            elif num_stop_codons == 1 and re.search('[*]', str(pad_seq(
+                    sequence[frame_start:].seq).translate())[-10:]):
+                logger.debug(f'Only one stop codon within the last 10 codons for seq for {sequence.name},\n '
+                             f'{pad_seq(sequence.seq).translate()}')
+                sequence = sequence[frame_start:]
+                return sequence
+            else:
+                frames_with_stop_codons += 1
+        if frames_with_stop_codons == 2:  # CJJ i.e. both 2nd and 3rd frames have stop codons in them too.
+            return None
+
+
 def check_and_correct_reading_frames(single_gene_new_target_file, frameshifts_folder, uncorrected_frameshifts_folder,
                                      exonerate_results_folder, refs_for_exonerate, counter, lock, num_files_to_process,
-                                     skip_fix_frameshifts_with_exonerate=False):
+                                     skip_fix_frameshifts_with_exonerate=False, length_percentage=1.00,
+                                     discard_short=False):
     """
     For a new gene target file, check that each sequence can be translated without stop codons from the first
     nucleotide. If not, correct the starting nucleotide. If stop codons are present regardless of whether the sequence
@@ -1241,32 +1344,13 @@ def check_and_correct_reading_frames(single_gene_new_target_file, frameshifts_fo
         sequences = list(SeqIO.parse(single_gene_new_target_file, 'fasta'))
         open_frame_found = True
         for sequence in sequences:
-            num_stop_codons = pad_seq(sequence.seq).translate().count('*')
-            if num_stop_codons == 0:
-                seqs_to_retain.append(sequence)
-            elif num_stop_codons == 1 and re.search('[*]', str(pad_seq(sequence.seq).translate())[-10:]):
-                logger.debug(f'Only one stop codon within the last 10 codons for seq for {sequence.name},\n '
-                             f'{pad_seq(sequence.seq).translate()}')
-                seqs_to_retain.append(sequence)
-            elif num_stop_codons > 0:
-                frames_with_stop_codons = 0
-                for frame_start in [1, 2]:
-                    num_stop_codons = pad_seq(sequence[frame_start:].seq).translate().count('*')
-                    if not num_stop_codons:
-                        sequence = sequence[frame_start:]
-                        seqs_to_retain.append(sequence)
-                        break
-                    elif num_stop_codons == 1 and re.search('[*]', str(pad_seq(
-                            sequence[frame_start:].seq).translate())[-10:]):
-                        logger.debug(f'Only one stop codon within the last 10 codons for seq for {sequence.name},\n '
-                                     f'{pad_seq(sequence.seq).translate()}')
-                        sequence = sequence[frame_start:]
-                        seqs_to_retain.append(sequence)
-                    else:
-                        frames_with_stop_codons += 1
-                if frames_with_stop_codons == 2:  # CJJ i.e. both 2nd and 3rd frames have stop codons in them too.
-                    open_frame_found = False
-                    seqs_with_frameshifts_dict[gene_name].append(sequence)
+            frameshift_check_seq = check_frameshifts(sequence)
+            if frameshift_check_seq:
+                seqs_to_retain.append(frameshift_check_seq)
+            else:
+                open_frame_found = False
+                seqs_with_frameshifts_dict[gene_name].append(sequence)
+
         with open(single_gene_new_target_file, 'w') as checked_target_file:
             SeqIO.write(seqs_to_retain, checked_target_file, 'fasta')
         if not open_frame_found:
@@ -1280,7 +1364,7 @@ def check_and_correct_reading_frames(single_gene_new_target_file, frameshifts_fo
             if not skip_fix_frameshifts_with_exonerate:
                 seqs_with_frameshifts_dict = run_exonerate(seqs_with_frameshifts_dict, refs_for_exonerate,
                                                            single_gene_new_target_file, gene_name,
-                                                           gene_exonerate_folder)
+                                                           gene_exonerate_folder, length_percentage, discard_short)
             if seqs_with_frameshifts_dict[gene_name]:  # i.e. some seqs couldn't be fixed...
                 createfolder(gene_with_uncorrected_frameshifts_folder)
                 with open(gene_with_uncorrected_frameshifts_file, 'w') as uncorrected_frameshifts:
@@ -1302,7 +1386,8 @@ def check_and_correct_reading_frames(single_gene_new_target_file, frameshifts_fo
 def check_and_correct_reading_frames_multiprocessing(new_target_sequences_folder, frameshifts_folder,
                                                      uncorrected_frameshifts_folder, exonerate_results_folder,
                                                      refs_for_exonerate, pool_threads,
-                                                     skip_fix_frameshifts_with_exonerate=False):
+                                                     skip_fix_frameshifts_with_exonerate=False,
+                                                     length_percentage=1.00, discard_short=False):
     """
     Run check_and_correct_reading_frames for each new target sequence file via function
     <check_and_correct_reading_frames> via multiprocessing.
@@ -1322,7 +1407,8 @@ def check_and_correct_reading_frames_multiprocessing(new_target_sequences_folder
         future_results = [pool.submit(check_and_correct_reading_frames, target_file, frameshifts_folder,
                                       uncorrected_frameshifts_folder, exonerate_results_folder, refs_for_exonerate,
                                       counter, lock, num_files_to_process=len(target_files),
-                                      skip_fix_frameshifts_with_exonerate=skip_fix_frameshifts_with_exonerate)
+                                      skip_fix_frameshifts_with_exonerate=skip_fix_frameshifts_with_exonerate,
+                                      length_percentage=length_percentage, discard_short=discard_short)
                           for target_file in target_files]
         for future in future_results:
             future.add_done_callback(done_callback)
@@ -1344,7 +1430,7 @@ def check_and_correct_reading_frames_multiprocessing(new_target_sequences_folder
 
 
 def run_exonerate(seqs_with_frameshifts_dict, refs_for_exonerate, single_gene_new_target_file, gene_name,
-                  gene_exonerate_folder):
+                  gene_exonerate_folder, length_percentage, discard_short):
     """
     For genes with stop codons in each forwards reading frame, writes files for Exonerate and performs and parses
     Exonerate output. Returns a dictionary of sequences that couldn't be fixed.
@@ -1399,15 +1485,33 @@ def run_exonerate(seqs_with_frameshifts_dict, refs_for_exonerate, single_gene_ne
         if not file_exists_and_not_empty(exonerate_result_file):
             logger.info(f'\nNo Exonerate results for gene {gene_name}, sequence {seq.name}\n')
             continue
-        fixed_seq = correct_frameshifts(exonerate_result_file)
+        fixed_seq = correct_frameshifts(exonerate_result_file)  # Note that this returns the sequence string only.
         if fixed_seq:
-            seqrecord = SeqRecord(Seq(fixed_seq), id=seq.id, name=seq.name,
-                                  description='corrected_frameshifts')
-            fixed_seqs.append(seqrecord)
+            seqrecord = SeqRecord(Seq(fixed_seq), id=seq.id, name=seq.name, description='corrected_frameshifts')
+            fixed_seq_ratio = len(seqrecord) / len(max(ref_names_seqs_and_lengths, key=itemgetter(2))[1])  # Note
+            # that this is different to the length_fraction calculated when first grafting, as here only the refs
+            # provided (rather than all _seed_ sequences) are considered.
+            if discard_short and fixed_seq_ratio < length_percentage:
+                continue  # i.e. Don't retain fixed sequence, because it's too short.
+            if fixed_seq_ratio < length_percentage:  # i.e. If the sequence fixed with Exonerate is now short...
+                grafted_seq = graft_exonerate_hit(seqrecord, max(ref_names_seqs_and_lengths, key=itemgetter(2))[1],
+                                                  gene_exonerate_folder)
+                if grafted_seq:
+                    fixed_seqs.append(grafted_seq)
+                else:
+                    logger.debug(f"\nCould not fix frameshifts for gene {gene_name}, sequence {seq.name}, "
+                                 f"following grafting post-Exonerate...\n")
+                    continue
+            else:
+                logger.debug(f'\nExonerate fixed_seq_ratio is {fixed_seq_ratio}, retaining sequence!')
+                fixed_seqs.append(seqrecord)
         else:
-            logger.debug(f"\nCouldn't fix frameshifts for gene {gene_name}, sequence {seq.name}, skipping\n")
+            logger.debug(f"\nCould not fix frameshifts for gene {gene_name}, sequence {seq.name}...\n")
             continue
+
     if len(fixed_seqs) != 0:
+        # fixed_seq_names = [seq.id for seq in fixed_seqs]  # Can't use seq.name as it's been changed by the grafting
+        # step above.
         fixed_seq_names = [seq.name for seq in fixed_seqs]
         unfixed_seqs = [seq for seq in seqs_with_frameshifts_dict[gene_name] if seq.name not in
                         fixed_seq_names]
@@ -1453,7 +1557,8 @@ def correct_frameshifts(exonerate_result_file):
 
                 # If there more than one hit range (due to e.g. introns/frameshifts, insert Ns between seqs
                 ns_to_insert_list = []
-                for filtered_range_pair_hit in pairwise(query_range):  # Should this actually be hit range, instead? No, that would insert Ns where introns have been removed.
+                for filtered_range_pair_hit in pairwise(query_range):  # Should this actually be hit range,
+                    # instead? No, that would insert Ns where introns have been removed.
                     left_seq, right_seq = filtered_range_pair_hit
                     three_prime_upstream_seq = left_seq[-1]
                     five_prime_downstream_seq = right_seq[0]
@@ -1471,7 +1576,7 @@ def correct_frameshifts(exonerate_result_file):
                     logger.debug(f"Couldn't fix frameshifts for {hit_name}, skipping\n")
                     return
                 return concatenated_seq
-            else: # i.e. If there's more than 1 hsp for the hit
+            else:  # i.e. If there's more than 1 hsp for the hit
                 hsp_seq_dict = OrderedDict()
                 query_ranges = []
                 hit_ranges = []
@@ -1557,11 +1662,46 @@ def correct_frameshifts(exonerate_result_file):
                 return concatenated_seq
 
 
+def graft_exonerate_hit(fixed_seq, longest_ref, output_folder):
+    """
+    If a sequence with frameshifts is fixed using Exonerate, and the resulting sequence is shorter than the longest
+    reference sequence, graft with any additional 5' and 3' sequence from the reference sequence. Returns None if a
+    sequence without frameshifts can't be produced.
+    """
+    tmp_fasta_file_for_alignment = f'{fixed_seq.name}_with_{longest_ref.name}_tmp.fasta'
+    fixed_seq_and_longest_ref_for_alignment = [fixed_seq, longest_ref]
+    with open(tmp_fasta_file_for_alignment, 'w') as tmp_fasta_file_for_alignment_handle:
+        SeqIO.write(fixed_seq_and_longest_ref_for_alignment, tmp_fasta_file_for_alignment_handle, 'fasta')
+    mafft_cline = (MafftCommandline(localpair=True, thread=1, input=tmp_fasta_file_for_alignment,
+                                    lop=-5.00, lep=-0.5, lexp=-0.1))
+    stdout, stderr = mafft_cline()
+    alignment_file = f'{output_folder}/{fixed_seq.name}_aln_{longest_ref.name}.fasta'
+    with open(alignment_file, 'w') as alignment_file_handle:
+        alignment_file_handle.write(stdout)
+    alignment_object = AlignIO.read(alignment_file, 'fasta')
+    # print(f'\nalignment_object[0]: {alignment_object[0]}')
+    # INSERT CHECK HERE THAT FIRST SEQ IN ALIGNMENT IS fixed_seq !!!!
+    os.remove(tmp_fasta_file_for_alignment)
+    grafted_name = f'{fixed_seq.name}_exonerate_grafted_{longest_ref.name}'
+    # grafted_seq_object = graft(alignment_object, grafted_name, "grafted sequence post-exonerate", fixed_seq.name)
+    grafted_seq_object = graft(alignment_object, fixed_seq.name, "grafted sequence post-exonerate", grafted_name)
+    if not grafted_seq_object:
+        logger.debug(f'No sequence to graft from from longest reference from gene {fixed_seq.name}')
+        grafted_seq_object = fixed_seq
+    frameshift_checked_seq = check_frameshifts(grafted_seq_object)
+    if frameshift_checked_seq:
+        logger.debug(f'Found an open reading frame for sequence {frameshift_checked_seq.name}')
+        return frameshift_checked_seq
+    else:
+        logger.debug(f'The function check_frameshifts returned no seq for seq {fixed_seq.name}')
+        return None
+
+
 def grouped(iterable, n):
     """s -> (s0,s1,s2,...sn-1), (sn,sn+1,sn+2,...s2n-1), (s2n,s2n+1,s2n+2,...s3n-1), ...
     Used in the function correct_frameshifts.
     """
-    return zip(*[iter(iterable)]*n)
+    return zip(*[iter(iterable)] * n)
 
 
 def pairwise(iterable):  # CJJ
@@ -1809,7 +1949,7 @@ def write_report(original_targetfile, transcriptome_folder, new_targetfile_folde
 
     logger.info(f'\n{"*" * 100}\n')
     logger.info(textwrap.fill("This summary report has been written to '18_reports/summary_report.csv', and a per-gene "
-                              "report has been written to '18_reports/report_per_gene.csv'",  98))
+                              "report has been written to '18_reports/report_per_gene.csv'", 98))
     return
 
 
@@ -1837,10 +1977,10 @@ def parse_arguments():
                         default=False)
     parser.add_argument("-skip_exonerate_frameshift_fix", dest="no_exonerate_fix", action='store_true',
                         help="Do not use Exonerate to fix frameshifts; discard such sequences instead", default=False)
-    parser.add_argument("-graft_closest", dest="graft_closest", action='store_true',
-                        help="If grafting transcriptome hits beneath the -length_percentage value (default), graft "
-                             "with the highest identity original target file sequence rather than the longest original "
-                             "sequence", default=False)
+    # parser.add_argument("-graft_closest", dest="graft_closest", action='store_true',
+    #                     help="If grafting transcriptome hits beneath the -length_percentage value (default), graft "
+    #                          "with the highest identity original target file sequence rather than the longest original "
+    #                          "sequence", default=False)
     parser.add_argument("-discard_short", dest="discard_short", action='store_true',
                         help="Discard transcriptome hits beneath the -length_percentage value rather than grafting",
                         default=False)
@@ -1881,7 +2021,8 @@ def main():
                        results.length_percentage,
                        results.hmmsearch_evalue,
                        results.refs_for_manual_trimming,
-                       results.no_n)
+                       results.no_n,
+                       results.discard_short)
 
     check_files_for_processing(results.target_file,
                                results.transcriptomes_folder,
@@ -1927,8 +2068,7 @@ def main():
                                                                    mafft_threads=results.external_program_threads,
                                                                    length_percentage=results.length_percentage,
                                                                    refs_for_trimmed=results.refs_for_manual_trimming,
-                                                                   discard_short=results.discard_short,
-                                                                   graft_closest=results.graft_closest)
+                                                                   discard_short=results.discard_short)
 
     fasta_files = [file for file in glob.glob(f'{folder_01}/*.fasta')]
     for counter, fasta_file in enumerate(fasta_files, 1):
@@ -1943,7 +2083,12 @@ def main():
         exonerate_results_folder=folder_14,
         refs_for_exonerate=results.refs_for_manual_trimming,
         pool_threads=results.python_threads,
-        skip_fix_frameshifts_with_exonerate=results.no_exonerate_fix)
+        skip_fix_frameshifts_with_exonerate=results.no_exonerate_fix,
+        length_percentage=results.length_percentage,
+        discard_short=results.discard_short)
+
+    create_mega_target_file(final_seqs_folder=folder_11,
+                            outfolder=folder_17)
 
     megatarget_single_gene_alignments_multiprocessing(final_seqs_folder=folder_11,
                                                       output_folder=folder_15,
@@ -1951,9 +2096,6 @@ def main():
                                                       collated_warnings=long_seqs_warnings,
                                                       mafft_threads=results.external_program_threads,
                                                       pool_threads=results.python_threads)
-
-    create_mega_target_file(final_seqs_folder=folder_11,
-                            outfolder=folder_17)
 
     write_report(results.target_file,
                  transcriptome_folder=results.transcriptomes_folder,

@@ -1598,6 +1598,7 @@ def correct_frameshifts(exonerate_result_file):
                 contig_names = [key for key in hsp_seq_dict.keys()]
 
                 range_comparisons = itertools.permutations(zip(hit_ranges, query_ranges, contig_names), 2)
+                # CJJ should this be itertools.combinations? Otherwise it'll remove both seq_a and seq_b?
                 for combination in range_comparisons:
                     seq_a_hit_5prime_boundary = combination[0][0][0][0]
                     seq_a_hit_3prime_boundary = combination[0][0][-1][-1]

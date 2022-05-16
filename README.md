@@ -13,7 +13,7 @@ Bioinformatic sequence recovery for universal target-capture bait kits can be [s
 - `BYO_transcriptome.py` A script to add sequences from any transcriptome dataset to any target file containing protein-coding sequences.
 
 **Manuscript** 
-- https://www.biorxiv.org/content/10.1101/2020.10.04.325571v1
+- https://pubmed.ncbi.nlm.nih.gov/34336399/
 
 ## Dependencies
 
@@ -91,6 +91,7 @@ python BYO_transcriptome.py [-h] [-num_hits_to_recover <integer>]
                             [-hmmsearch_evalue <number in scientific notation; default is 1e-50>]
                             [-trim_to_refs <taxon_name>] [-no_n]
                             [-skip_exonerate_frameshift_fix]
+                            [-discard_short]
                             target_file transcriptomes_folder
 ```
 Example command line:
@@ -110,7 +111,7 @@ Please see the Wiki page [BYO_transcriptome][6] for further details.
 [9]: https://sites.google.com/a/ualberta.ca/onekp/ "Link to the 1000 Plants website"
 [10]: https://dx.doi.org/10.1093%2Fsysbio%2Fsyy086 "Link to Angiosperms353 manuscript"
 [11]: https://pandas.pydata.org/pandas-docs/stable/getting_started/install.html "Link to pandas installation instructions"
-[12]: https://www.biorxiv.org/content/10.1101/2020.10.04.325571v1 "Link to NewTargets manuscript"
+[12]: https://pubmed.ncbi.nlm.nih.gov/34336399/ "Link to NewTargets manuscript"
 
 
 

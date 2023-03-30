@@ -2299,13 +2299,6 @@ def parse_arguments():
                         action='store_true',
                         default=False,
                         help="Do not use Exonerate to fix frameshifts; discard such sequences instead")
-    # parser.add_argument("-graft_closest",
-    #                     dest="graft_closest",
-    #                     action='store_true',
-    #                     help="If grafting transcriptome hits beneath the -length_percentage value (default), graft "
-    #                          "with the highest identity original target file sequence rather than the longest original "
-    #                          "sequence",
-    #                     default=False)
     parser.add_argument("-discard_short",
                         dest="discard_short",
                         action='store_true',

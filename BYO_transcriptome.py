@@ -60,11 +60,10 @@ try:
 except ImportError:
     sys.exit(f"Required Python package 'numpy' not found. Is it installed for the Python used to run this script?")
 import logging
-import fnmatch
+import datetime
 import sys
 import argparse
 import os
-import socket
 from Bio.Align.Applications import MafftCommandline
 import subprocess
 import re
@@ -96,36 +95,53 @@ if biopython_version[0:2] >= [1, 78]:
 
 ########################################################################################################################
 ########################################################################################################################
-# Get current working directory and host name
-
-cwd = os.getcwd()
-host = socket.gethostname()
-
 # Configure logger:
 
-# Create a custom logger
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
-# Create handlers
-c_handler = logging.StreamHandler(sys.stdout)
-existing_log_file_numbers = [int(file.split('_')[-1]) for file in os.listdir('.') if
-                             fnmatch.fnmatch(file, '*.mylog*')]
-if not existing_log_file_numbers:
-    new_log_number = 1
-else:
-    new_log_number = sorted(existing_log_file_numbers)[-1] + 1
-f_handler = logging.FileHandler(f'BYO_transcriptomes.mylog_{new_log_number}', mode='w')
+def setup_logger(name, log_file, console_level=logging.INFO, file_level=logging.DEBUG,
+                 logger_object_level=logging.DEBUG):
+    """
+    Function to create a logger instance.
 
-# Create formatters and add them to handlers
-c_format = logging.Formatter('%(message)s')
-f_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-c_handler.setFormatter(c_format)
-f_handler.setFormatter(f_format)
+    By default, logs level DEBUG and above to file.
+    By default, logs level INFO and above to stderr and file.
 
-# Add handlers to the logger
-logger.addHandler(c_handler)
-logger.addHandler(f_handler)
+    :param str name: name for the logger instance
+    :param str log_file: filename for log file
+    :param str console_level: logger level for logging to console
+    :param str file_level: logger level for logging to file
+    :param str logger_object_level: logger level for logger object
+    :return: logging.Logger: logger object
+    """
+
+    # Get date and time string for log filename:
+    date_and_time = datetime.datetime.now().strftime("%Y-%m-%d-%H_%M_%S")
+
+    # Log to file:
+    file_handler = logging.FileHandler(f'{log_file}_{date_and_time}.log', mode='w')
+    file_handler.setLevel(file_level)
+    file_format = logging.Formatter('%(asctime)s - %(filename)s - %(name)s - %(funcName)s - %(levelname)s - %('
+                                    'message)s')
+    file_handler.setFormatter(file_format)
+
+    # Log to Terminal (stderr):
+    console_handler = logging.StreamHandler(sys.stderr)
+    console_handler.setLevel(console_level)
+    console_format = logging.Formatter('%(message)s')
+    console_handler.setFormatter(console_format)
+
+    # Setup logger:
+    logger_object = logging.getLogger(name)
+    logger_object.setLevel(logger_object_level)  # Default level is 'WARNING'
+
+    # Add handlers to the logger
+    logger_object.addHandler(console_handler)
+    logger_object.addHandler(file_handler)
+
+    return logger_object
+
+
+logger = setup_logger(__name__, 'BYO_transcriptomes')
 
 
 ########################################################################################################################
@@ -214,6 +230,7 @@ def done_callback(future_returned):
     """
     if future_returned.cancelled():
         logger.info(f'{future_returned}: cancelled')
+        return
     elif future_returned.done():
         error = future_returned.exception()
         if error:
@@ -221,11 +238,18 @@ def done_callback(future_returned):
             return
         else:
             result = future_returned.result()
-    return result
+            return result
 
 
-def check_dependencies(target_file, transcriptomes_folder, python_threads, external_program_threads, length_percentage,
-                       hmmsearch_evalue, refs_for_manual_trimming, no_n, discard_short):
+def check_dependencies(target_file,
+                       transcriptomes_folder,
+                       python_threads,
+                       external_program_threads,
+                       length_percentage,
+                       hmmsearch_evalue,
+                       refs_for_manual_trimming,
+                       no_n,
+                       discard_short):
     """
     Checks Python version, successful import of third party Python modules, the presence of external executables, and
     HMMER, Exonerate and MAFFT versions. Prints and logs the run parameters.
@@ -238,13 +262,19 @@ def check_dependencies(target_file, transcriptomes_folder, python_threads, exter
             f'You could try running the script in a conda environment with version 3.7 installed...')
 
     # Check external executables
-    executables = ['hmmbuild', 'hmmsearch', 'mafft', 'exonerate']
+    executables = ['hmmbuild',
+                   'hmmsearch',
+                   'mafft',
+                   'exonerate',
+                   'TransDecoder.LongOrfs',
+                   'TransDecoder.Predict']
+
     logger.info('')
     for executable in executables:
         if not shutil.which(executable):
             sys.exit(f"Required executable '{executable}' not found. Is it installed and in your PATH?")
         else:
-            logger.info(f"Found required executable: {executable:<15}{shutil.which(executable):<30}")
+            logger.info(f"Found required executable: {executable:<25}{shutil.which(executable):<30}")
     logger.info('')
 
     # Check HMMer version is at least 3.2.1
@@ -326,7 +356,11 @@ def check_dependencies(target_file, transcriptomes_folder, python_threads, exter
     return
 
 
-def check_files_for_processing(target_fasta_file, transcriptomes_folder, refs_for_manual_trimming):
+def check_files_for_processing(target_fasta_file,
+                               transcriptomes_folder,
+                               refs_for_manual_trimming,
+                               renamed_transcriptome_folder):
+
     """
     Checks the number, type and naming conventions of files and target-file fasta headers. Unzips transcriptome files
     if necessary and creates a copy of each with transcripts renamed to 'contig_1-transcriptomeID,
@@ -334,7 +368,16 @@ def check_files_for_processing(target_fasta_file, transcriptomes_folder, refs_fo
     'Orysa'] or as provided by the -trim_to_refs command line option) is available for each gene in the target file.
     Checks that each sequence in the target file can be translated without stop codons (or with only a single stop
     codon found within the last 10 amino-acids) in one of the forwards frames.
+
+    :param target_fasta_file:
+    :param transcriptomes_folder:
+    :param refs_for_manual_trimming:
+    :param str renamed_transcriptome_folder: folder to create for transcriptomes with renamed sequences
+    :return:
     """
+
+    createfolder(renamed_transcriptome_folder)
+
     transcriptomes_folder_base = os.path.basename(transcriptomes_folder)
     target_fasta_file_base = os.path.basename(target_fasta_file)
 
@@ -381,11 +424,15 @@ def check_files_for_processing(target_fasta_file, transcriptomes_folder, refs_fo
                     frames_with_stop_codons += 1
             if frames_with_stop_codons == 2:  # CJJ i.e. both 2nd and 3rd frames have stop codons in them too.
                 seqs_with_frameshifts_dict[gene_name].append(sequence.name)
+
     if len(seqs_with_frameshifts_dict) != 0:
+
         logger.info(f'The following target file sequences cannot be translated without stop codons in any forwards '
                     f'frame, please correct this:')
+
         for key, value in seqs_with_frameshifts_dict.items():
             logger.info(f'Gene {key}: {", ".join(value)}')
+
         sys.exit(f'Please check your target file and try again')
 
     # Check if a reference is present for each gene:
@@ -426,25 +473,31 @@ def check_files_for_processing(target_fasta_file, transcriptomes_folder, refs_fo
     # Rename transcriptome sequences
     logger.info(f'Renaming transcriptome sequences...')
     transcriptomes_to_process = []
+
     for transcriptome in [fn for fn in glob.glob(f'{transcriptomes_folder}/*') if not fn.endswith('renamed.fasta')]:
         transcriptome_id = os.path.basename(transcriptome)
         transcriptome_unique_code = re.split('[-.]', transcriptome_id)[0]
-        filename, file_extension = os.path.splitext(transcriptome)
-        transcriptome_renamed = f'{filename}_renamed.fasta'
-        if file_exists_and_not_empty(transcriptome_renamed):
-            os.remove(transcriptome_renamed)
+        filename, file_extension = os.path.splitext(transcriptome_id)
+        transcriptome_renamed = f'{renamed_transcriptome_folder}/{filename}_renamed.fasta'
+
+        if file_exists_and_not_empty(f'{transcriptome_renamed}'):
+            os.remove(f'{transcriptome_renamed}')
+
         transcriptomes_to_process.append(filename)
         renamed_seqs = []
         seqs = SeqIO.parse(transcriptome, 'fasta')
         contig_num = 1
+
         for seq in seqs:
             seq.description = seq.name
             seq.name = f'transcript_{contig_num}-{transcriptome_unique_code}'
             seq.id = f'transcript_{contig_num}-{transcriptome_unique_code}'
             renamed_seqs.append(seq)
             contig_num += 1
-        with open(transcriptome_renamed, 'w') as renamed:
+
+        with open(f'{transcriptome_renamed}', 'w') as renamed:
             SeqIO.write(renamed_seqs, renamed, 'fasta')
+
     if not transcriptomes_to_process:
         sys.exit(f'The folder provided "{transcriptomes_folder_base}" does not appear to contain any files!')
 
@@ -454,10 +507,12 @@ def check_files_for_processing(target_fasta_file, transcriptomes_folder, refs_fo
     logger.info(f'{"Number of transcriptomes to search:":<50}{len(transcriptomes_to_process)}\n')
     logger.info(f'If the numbers above do not match your expectations, please check your file and sequences names.')
     logger.info(f'\n{"*" * 104}\n')
+
     return
 
 
-def split_targets(target_fasta_file, output_folder):
+def split_targets(target_fasta_file,
+                  output_folder):
     """
     Takes the target fasta file and splits it into one fasta file per gene (grouping via the uniqueID suffix in
     the fasta header e.g.
@@ -469,18 +524,26 @@ def split_targets(target_fasta_file, output_folder):
     """
     createfolder(output_folder)
     gene_lists = defaultdict(list)
+
     with open(target_fasta_file, 'r') as target_file:
         seqs = SeqIO.parse(target_file, 'fasta')
         for seq in seqs:
             gene_id = re.split('-', seq.name)[-1]
             gene_lists[gene_id].append(seq)
+
     for key, value in gene_lists.items():
         with open(f'{output_folder}/{key}.fasta', 'w') as outfile:
             for sequence in value:
                 SeqIO.write(sequence, outfile, 'fasta')
 
 
-def align_targets(fasta_file, algorithm, output_folder, counter, lock, num_files_to_process, threads=2):
+def align_targets(fasta_file,
+                  algorithm,
+                  output_folder,
+                  counter,
+                  lock,
+                  num_files_to_process,
+                  threads=2):
     """
     Uses mafft to align a fasta file of sequences, using the algorithm and number of threads provided. Returns filename
     of the alignment produced.
@@ -492,20 +555,26 @@ def align_targets(fasta_file, algorithm, output_folder, counter, lock, num_files
     try:
         assert file_exists_and_not_empty(expected_alignment_file)
         logger.debug(f'Alignment exists for {fasta_file_basename}, skipping...')
+
     except AssertionError:
         mafft_cline = (MafftCommandline(algorithm, thread=threads, input=fasta_file))
         stdout, stderr = mafft_cline()
         with open(expected_alignment_file, 'w') as alignment_file:
             alignment_file.write(stdout)
+
     finally:
         with lock:
             counter.value += 1
             print(f'\rFinished generating alignment for file {fasta_file_basename}, '
                   f'{counter.value}/{num_files_to_process}', end='')
+
         return os.path.basename(expected_alignment_file)
 
 
-def align_targets_multiprocessing(target_gene_folder, alignments_output_folder, algorithm='linsi', pool_threads=1,
+def align_targets_multiprocessing(target_gene_folder,
+                                  alignments_output_folder,
+                                  algorithm='linsi',
+                                  pool_threads=1,
                                   mafft_threads=2):
     """
     Generate alignments via function <align_targets> using multiprocessing.
@@ -521,18 +590,27 @@ def align_targets_multiprocessing(target_gene_folder, alignments_output_folder, 
         future_results = [pool.submit(align_targets, fasta_file, algorithm, alignments_output_folder, counter, lock,
                                       num_files_to_process=len(target_genes), threads=mafft_threads)
                           for fasta_file in target_genes]
+
         for future in future_results:
             future.add_done_callback(done_callback)
+
         wait(future_results, return_when="ALL_COMPLETED")
+
     alignment_list = [alignment for alignment in glob.glob(f'{alignments_output_folder}/*.aln.fasta') if
                       file_exists_and_not_empty(alignment)]
+
     logger.info(f'\n{len(alignment_list)} alignments generated from {len(future_results)} fasta files.\n')
     if len(target_genes) != len(alignment_list):
         sys.exit(f'Only {len(alignment_list)} alignments were generated from {len(target_genes)} fasta files, check '
                  f'for errors!')
 
 
-def create_hmm_profile(alignment, output_folder, counter, lock, num_files_to_process, hmmbuild_threads=2):
+def create_hmm_profile(alignment,
+                       output_folder,
+                       counter,
+                       lock,
+                       num_files_to_process,
+                       hmmbuild_threads=2):
     """
     Create HMM profile from alignment using HMMer. Returns filename of the HMM profile produced.
     """
@@ -543,18 +621,23 @@ def create_hmm_profile(alignment, output_folder, counter, lock, num_files_to_pro
     try:
         assert file_exists_and_not_empty(expected_hmm_file)
         logger.debug(f'HMM profile exists for {alignment_file_basename}, skipping...')
+
     except AssertionError:
-        subprocess.run(['hmmbuild', '-o', '/dev/null', '--cpu', str(hmmbuild_threads), '--dna', expected_hmm_file,
-                        alignment], check=True)
+        subprocess.run(['hmmbuild', '-o', '/dev/null', '--symfrac', '0.0', '--cpu', str(hmmbuild_threads), '--dna',
+                        expected_hmm_file, alignment], check=True)
     finally:
         with lock:
             counter.value += 1
             print(f'\rFinished generating HMM profile for alignment {alignment_file_basename}, '
                   f'{counter.value}/{num_files_to_process}', end='')
+
         return alignment_file_basename
 
 
-def create_hmm_profile_multiprocessing(alignments_folder, hmm_output_folder, pool_threads=1, hmmbuild_threads=2):
+def create_hmm_profile_multiprocessing(alignments_folder,
+                                       hmm_output_folder,
+                                       pool_threads=1,
+                                       hmmbuild_threads=2):
     """
     Generate HMM profiles via function <create_hmm_profile> using multiprocessing.
     """
@@ -569,18 +652,29 @@ def create_hmm_profile_multiprocessing(alignments_folder, hmm_output_folder, poo
         future_results = [pool.submit(create_hmm_profile, alignment, hmm_output_folder, counter, lock,
                                       num_files_to_process=len(alignments), hmmbuild_threads=hmmbuild_threads)
                           for alignment in alignments]
+
         for future in future_results:
             future.add_done_callback(done_callback)
+
         wait(future_results, return_when="ALL_COMPLETED")
+
     hmm_list = [hmm for hmm in glob.glob(f'{hmm_output_folder}/*.hmm') if file_exists_and_not_empty(hmm)]
     logger.info(f'\n{len(hmm_list)} HMM profiles generated from {len(future_results)} alignment files.\n')
+
     if len(alignments) != len(hmm_list):
         sys.exit(f'Only {len(hmm_list)} hmm profiles were generated from {len(alignments)} alignments, check '
                  f'for errors!')
 
 
-def hmm_vs_transcriptome(hmm_profile, transcriptomes_folder, hits_output_folder, hmm_logs_output_folder,
-                         num_hits_to_recover, counter, lock, num_files_to_process, hmmsearch_threads=1,
+def hmm_vs_transcriptome(hmm_profile,
+                         transcriptomes_folder,
+                         hits_output_folder,
+                         hmm_logs_output_folder,
+                         num_hits_to_recover,
+                         counter,
+                         lock,
+                         num_files_to_process,
+                         hmmsearch_threads=1,
                          hmmsearch_evalue='1e-50'):
     """
     Performs HMM searches against transcriptome fasta files using the provided HMM profile, extracts hits from
@@ -597,52 +691,93 @@ def hmm_vs_transcriptome(hmm_profile, transcriptomes_folder, hits_output_folder,
         transcriptome_id = os.path.basename(transcriptome)
         fasta_hit_file = f'{hits_output_folder}/{gene_name}/{transcriptome_id}_{gene_name}_HMM_hits.fasta'
         seqs_to_recover = []
+
         if file_exists_and_not_empty(fasta_hit_file):
             logger.debug(f'A fasta file of HMM hits for gene {gene_name} vs transcriptome {transcriptome_id} already '
                          f'exists, skipping...')
             continue
+
         logger.debug(f'SEARCH: searching transcriptome {transcriptome_id} with profile {hmm_profile_basename}')
+
         log_file = f'{hmm_logs_output_folder}/{hmm_profile_basename}_{transcriptome_id}.log'
         human_readable_log_file = f'{hmm_logs_output_folder}/' \
                                   f'{hmm_profile_basename}_{transcriptome_id}.human_readable.log'
-        subprocess.run(['hmmsearch', '--tblout', log_file, '-E', hmmsearch_evalue, '-o', human_readable_log_file,
-                        '--cpu', str(hmmsearch_threads), hmm_profile, transcriptome], check=True)
 
-        # Read in log file and recover hit name(s)
+        try:
+            result = subprocess.run(['nhmmer', '--cpu', str(hmmsearch_threads), '--tblout', log_file, '-E',
+                                     str(hmmsearch_evalue), '-o', human_readable_log_file, hmm_profile, transcriptome],
+                                    universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                    check=True)
+
+            logger.debug(f'nhmmer check_returncode() is: {result.check_returncode()}')
+            logger.debug(f'nhmmer stdout is: {result.stdout}')
+            logger.debug(f'nhmmer stderr is: {result.stderr}')
+
+        except subprocess.CalledProcessError as exc:
+            logger.error(f'nhmmer FAILED. Output is: {exc}')
+            logger.error(f'nhmmer stdout is: {exc.stdout}')
+            logger.error(f'nhmmer stderr is: {exc.stderr}')
+            raise ValueError('There was an issue running nhmmer. Check input files!')
+
+        # Read in log file and recover hit name(s), and strand:
+
+        all_transcript_hits = []
         with open(log_file, 'r') as hmm_results:
             results = hmm_results.readlines()
-            hits = [line.split()[0] for line in results if not line.startswith('#')]
-        if hits:
-            logger.debug(f'*** Transcriptome {transcriptome_id} contains {len(hits)} hits for '
+            for line in results:
+                if not line.startswith('#'):
+                    transcript_name, _, _, _, _, _, ali_from, ali_to, _, _, _, strand, _, _, _, _ = line.split()
+                    all_transcript_hits.append([transcript_name, ali_from, ali_to, strand])
+
+        if len(all_transcript_hits) != 0:
+            logger.debug(f'*** Transcriptome {transcriptome_id} contains {len(all_transcript_hits)} hits for '
                          f'{hmm_profile_basename} ***')
-            for hit in hits[0:num_hits_to_recover]:
+            for hit in all_transcript_hits[0:num_hits_to_recover]:
                 seqs_to_recover.append(hit)
         else:
             logger.debug(f'No hits for {gene_name} from transcriptome {transcriptome_id}...')
             pass
 
         # Parse transcriptome fasta file and recover hit sequences
+        seq2strand_dict = dict()
+        for item in seqs_to_recover:
+            seq2strand_dict[item[0]] = item[3]
+
         with open(transcriptome) as transcriptome_fasta:
             seq_records_to_write = []
             seqs = SeqIO.parse(transcriptome_fasta, 'fasta')
+
             for seq in seqs:
-                if seq.name in seqs_to_recover:
+
+                if seq.name in seq2strand_dict:
+                    strand = seq2strand_dict[seq.name]
+
+                    if strand == '-':
+                        seq.seq = seq.reverse_complement().seq
+
                     seq_records_to_write.append(seq)
 
         # Write the hits sequences to a fasta file
         with open(fasta_hit_file, 'w') as fasta_output:
             for seq_record in seq_records_to_write:
                 SeqIO.write(seq_record, fasta_output, 'fasta')
+
     with lock:
         counter.value += 1
         print(f'\rFinished searching transcriptomes with {hmm_profile_basename}, '
               f'{counter.value}/{num_files_to_process}', end='')
+
     return hmm_profile_basename
 
 
-def hmm_vs_transcriptome_multiprocessing(hmmprofile_folder, transcriptomes_folder, hits_output_folder,
-                                         hmm_logs_output_folder, num_hits_to_recover, pool_threads=1,
-                                         hmmsearch_threads=1, hmmsearch_evalue='1e-50'):
+def hmm_vs_transcriptome_multiprocessing(hmmprofile_folder,
+                                         transcriptomes_folder,
+                                         hits_output_folder,
+                                         hmm_logs_output_folder,
+                                         num_hits_to_recover,
+                                         pool_threads=1,
+                                         hmmsearch_threads=1,
+                                         hmmsearch_evalue='1e-50'):
     """
     Run HMM searches of transcriptomes via function <hmm_vs_transcriptome> using multiprocessing.
     """
@@ -661,8 +796,10 @@ def hmm_vs_transcriptome_multiprocessing(hmmprofile_folder, transcriptomes_folde
                                       num_files_to_process=len(hmm_profiles), hmmsearch_threads=hmmsearch_threads,
                                       hmmsearch_evalue=hmmsearch_evalue)
                           for hmm_profile in hmm_profiles]
+
         for future in future_results:
             future.add_done_callback(done_callback)
+
         wait(future_results, return_when="ALL_COMPLETED")
 
 
@@ -672,19 +809,24 @@ def remove_empty_seqs_aln(alignment_fasta_file):
     """
     seqs_to_keep = []
     aln_obj = AlignIO.read(alignment_fasta_file, 'fasta')
+
     for seq in aln_obj:
-        ungapped_seq_length = len(seq.seq.ungap('-'))
+        ungapped_seq_length = len(seq.seq.replace('-', ''))
         if not ungapped_seq_length == 0:
             seqs_to_keep.append(seq)
         else:
             logger.debug(f'Length of seq {seq.name} in alignment {alignment_fasta_file} is zero - HMM hit could not '
                          f'be aligned! Discarding...')
+
     alignment_empty_seqs_removed = MultipleSeqAlignment(seqs_to_keep)
     AlignIO.write(alignment_empty_seqs_removed, alignment_fasta_file, 'fasta')
 
 
-def align_extractions_single_reference(single_gene_alignment, single_gene_alignment_object, concatenated_hits,
-                                       mafft_threads, single_gene_alignment_with_hits_name):
+def align_extractions_single_reference(single_gene_alignment,
+                                       single_gene_alignment_object,
+                                       concatenated_hits,
+                                       mafft_threads,
+                                       single_gene_alignment_with_hits_name):
     """
     Processes alignments of transcriptome hits to a target file reference in the case where only a single reference is
     present in the target file.
@@ -698,15 +840,20 @@ def align_extractions_single_reference(single_gene_alignment, single_gene_alignm
     if file_exists_and_not_empty(concatenated_hits):
         single_gene_alignment = re.sub('.fasta', '.single_seed.fasta', single_gene_alignment)
         seqs_to_align = [single_ref_sequence]
+
         for hit_seq in SeqIO.parse(concatenated_hits, 'fasta'):
             seqs_to_align.append(hit_seq)
+
         with open(single_gene_alignment, 'w') as seed_single_file:
             SeqIO.write(seqs_to_align, seed_single_file, 'fasta')
+
         mafft_cline = (MafftCommandline(localpair=True, thread=mafft_threads, input=single_gene_alignment,
                                         lop=-5.00, lep=-0.5, lexp=-0.1))
         stdout, stderr = mafft_cline()
+
         with open(single_gene_alignment_with_hits_name, 'w') as alignment_file:
             alignment_file.write(stdout)
+
         remove_empty_seqs_aln(single_gene_alignment_with_hits_name)
         os.remove(single_gene_alignment)
 
@@ -721,15 +868,25 @@ def strip_n(concatenated_hits):
     """
     concatenated_seqs = SeqIO.parse(concatenated_hits, 'fasta')
     stripped_seqs_to_write = []
+
     for seq in concatenated_seqs:
-        seq.seq = seq.seq.ungap(gap='N')
+        seq.seq = seq.seq.replace('N', '')
         stripped_seqs_to_write.append(seq)
+
     with open(concatenated_hits, 'w') as n_stripped_concatenated_hits:
         SeqIO.write(stripped_seqs_to_write, n_stripped_concatenated_hits, 'fasta')
 
 
-def align_extractions(single_gene_alignment, output_folder, hit_folder, concatenated_folder, seqs_with_ns_folder,
-                      counter, lock, num_files_to_process, mafft_threads=2, no_n=False):
+def align_extractions(single_gene_alignment,
+                      output_folder,
+                      hit_folder,
+                      concatenated_folder,
+                      seqs_with_ns_folder,
+                      counter,
+                      lock,
+                      num_files_to_process,
+                      mafft_threads=2,
+                      no_n=False):
     """
     Takes a single gene alignment (from folder_02) from the target fasta file and aligns the hits extracted from
     the transcriptomes (from folder_04) using the mafft 'seed' option, which prefixes sequence fasta headers in the
@@ -741,6 +898,7 @@ def align_extractions(single_gene_alignment, output_folder, hit_folder, concaten
     """
     single_gene_alignment_object = AlignIO.read(single_gene_alignment, 'fasta')
     seqs = [seq for seq in single_gene_alignment_object]
+
     if len(seqs) == 1:
         single_reference = True
     else:
@@ -756,20 +914,24 @@ def align_extractions(single_gene_alignment, output_folder, hit_folder, concaten
     concatenated_hits = f'{concatenated_folder}/{gene_id}.concat.fasta'  # Write new concatenated hits file
     if file_exists_and_not_empty(concatenated_hits):
         os.remove(concatenated_hits)
+
     for fasta_file in glob.glob(f'{hit_folder}/{gene_id}/*'):
         concatenate_small(concatenated_hits, fasta_file)
+
     seqs_with_n_dict = defaultdict(list)  # Create a dictionary of seqs that contain Ns
     for seq in SeqIO.parse(concatenated_hits, 'fasta'):
         n_count = seq.seq.count('N')
         if n_count:
             seqs_with_n_dict[gene_id].append(seq)
             createfolder(seqs_with_ns_folder_gene_folder)
+
             with open(f'{seqs_with_ns_folder_gene_folder}/{gene_id}_seqs_with_ns.fasta', 'w') as seqs_ns:
                 SeqIO.write(seqs_with_n_dict[gene_id], seqs_ns, 'fasta')
 
     try:
         assert file_exists_and_not_empty(single_gene_alignment_with_hits_name)
         logger.debug(f' Alignment exists for {single_gene_alignment_name}, skipping...')
+
     except AssertionError:
         if no_n and file_exists_and_not_empty(concatenated_hits):  # If requested, strip Ns from transcriptome hits
             strip_n(concatenated_hits)
@@ -780,6 +942,7 @@ def align_extractions(single_gene_alignment, output_folder, hit_folder, concaten
             mafft_cline = (MafftCommandline(localpair=True, thread=mafft_threads, input=concatenated_hits, lop=-5.00,
                                             lep=-0.5, lexp=-0.1, seed=single_gene_alignment))
             stdout, stderr = mafft_cline()
+
             with open(single_gene_alignment_with_hits_name, 'w') as alignment_file:
                 alignment_file.write(stdout)
             remove_empty_seqs_aln(single_gene_alignment_with_hits_name)
@@ -788,14 +951,21 @@ def align_extractions(single_gene_alignment, output_folder, hit_folder, concaten
             counter.value += 1
             print(f'\rFinished aligning transcriptome hits for {single_gene_alignment_name}, '
                   f'{counter.value}/{num_files_to_process}', end='')
+
         if seqs_with_n_dict:
             return single_gene_alignment_name, seqs_with_n_dict
         else:
             return single_gene_alignment_name
 
 
-def align_extractions_multiprocessing(alignments_folder, output_folder, hit_folder, seqs_with_ns_folder,
-                                      concatenated_folder, mafft_threads=2, pool_threads=1, no_n=False):
+def align_extractions_multiprocessing(alignments_folder,
+                                      output_folder,
+                                      hit_folder,
+                                      seqs_with_ns_folder,
+                                      concatenated_folder,
+                                      mafft_threads=2,
+                                      pool_threads=1,
+                                      no_n=False):
     """
     Generate alignments via function <align_extractions> using multiprocessing.
     """
@@ -812,8 +982,10 @@ def align_extractions_multiprocessing(alignments_folder, output_folder, hit_fold
                                       seqs_with_ns_folder, counter, lock, num_files_to_process=len(alignments),
                                       mafft_threads=mafft_threads, no_n=no_n) for
                           alignment in alignments]
+
         for future in future_results:
             future.add_done_callback(done_callback)
+
         wait(future_results, return_when="ALL_COMPLETED")
 
         seqs_with_ns = []
@@ -827,14 +999,19 @@ def align_extractions_multiprocessing(alignments_folder, output_folder, hit_fold
         alignment_list = [alignments for alignment in glob.glob(f'{output_folder}/*.aln_added.fasta') if
                           file_exists_and_not_empty(alignment)]
         logger.info(f'\n{len(alignment_list)} alignments generated from {len(future_results)} alignment files.\n')
+
         if len(alignments) != len(alignment_list):
             sys.exit(f'Only {len(alignment_list)} alignments were generated from {len(alignments)} genes, check '
                      f'for errors!')
+
         shutil.rmtree(concatenated_folder)
+
         return seqs_with_ns
 
 
-def trim_alignments_manually(gene_alignment, output_folder, refs_for_trimmed):
+def trim_alignments_manually(gene_alignment,
+                             output_folder,
+                             refs_for_trimmed):
     """
     Takes a fasta alignment file as input, trims it to the longest of the sequences from default list (_seed_Arath,
     _seed_Ambtr, _seed_Orysa), or a user provided list of taxon names.
@@ -843,6 +1020,7 @@ def trim_alignments_manually(gene_alignment, output_folder, refs_for_trimmed):
         commandline_refs_for_trimming = list(sorted(set(refs_for_trimmed)))
     except TypeError:
         commandline_refs_for_trimming = None
+
     if commandline_refs_for_trimming:
         sorted_refs_for_trimming = [f'_seed_{name}' for name in commandline_refs_for_trimming]
         logger.debug(f'Non-default references used for manual trimming...')
@@ -861,32 +1039,37 @@ def trim_alignments_manually(gene_alignment, output_folder, refs_for_trimmed):
     except AssertionError:
         untrimmed_alignment = AlignIO.read(gene_alignment, "fasta")
         pattern = re.compile(re_compile_string)
-        seed_names_and_lengths = [(seq.name, len(seq.seq.ungap(gap='-'))) for seq in untrimmed_alignment if
+        seed_names_and_lengths = [(seq.name, len(seq.seq.replace('-', ''))) for seq in untrimmed_alignment if
                                   re.search(pattern, seq.name)]
         longest_ref_name = max(seed_names_and_lengths, key=itemgetter(1))[0]
         reference_index_count = 0
         trimmed_ref_found = False
+
         for sequence in untrimmed_alignment:  # Change to enumerate
             if sequence.name == longest_ref_name:
                 trimmed_ref_found = True
                 break
             else:
                 reference_index_count += 1  # get index for reference seq to trim to
+
         if trimmed_ref_found:
             logger.debug(f'Found reference {longest_ref_name} at index {reference_index_count}!')
         untrimmed_array = np.array([sequence.seq for sequence in untrimmed_alignment])
         five_prime_slice = 0
+
         for position in untrimmed_array.T:
             if "-" in position[reference_index_count]:
                 five_prime_slice += 1
             else:
                 break
+
         three_prime_slice = 0
         for position in np.flipud(untrimmed_array.T):  # Transpose the numpy array
             if "-" in position[reference_index_count]:
                 three_prime_slice += 1
             else:
                 break
+
         corrected_three_prime_slice = untrimmed_alignment.get_alignment_length() - three_prime_slice
         sliced_alignment = untrimmed_alignment[:, five_prime_slice:corrected_three_prime_slice]
         with open(f'{output_folder}/{trimmed_alignment}', 'w') as outfile:
@@ -895,7 +1078,8 @@ def trim_alignments_manually(gene_alignment, output_folder, refs_for_trimmed):
         return expected_output_file
 
 
-def read_matrix(lines, dtype=float):
+def read_matrix(lines,
+                dtype=float):
     """
     Adapted from the function read() in __init__.py from Bio.Align.substitution_matrices in Biopython 1.78. This
     function usually reads a text file containing the substitution matrix; here it reads a list object. Used in the
@@ -926,11 +1110,14 @@ def read_matrix(lines, dtype=float):
         else:
             alphabet = "".join(alphabet)
         matrix = Array(alphabet=alphabet, dims=2, dtype=dtype)
+
         for letter1, row in zip(alphabet, rows):
             assert letter1 == row.pop(0)
             for letter2, word in zip(alphabet, row):
                 matrix[letter1, letter2] = float(word)
+
     matrix.header = header
+
     return matrix
 
 
@@ -972,7 +1159,10 @@ class ExtendDistanceCalculator(DistanceCalculator):
                     "Model not supported. Available models: " + ", ".join(self.models))
 
 
-def get_graft_alignment(trimmed_dm, trimmed_alignment, transcriptome_hit_to_graft, graft_closest=False):
+def get_graft_alignment(trimmed_dm,
+                        trimmed_alignment,
+                        transcriptome_hit_to_graft,
+                        graft_closest=False):
     """
     For a given sequence, identifies either the longest original sequence (i.e. with the prefix _seed_) in a given
     alignment, or the closest identity sequence. Returns an alignment of both sequences, and the name of the sequence
@@ -983,6 +1173,7 @@ def get_graft_alignment(trimmed_dm, trimmed_alignment, transcriptome_hit_to_graf
         names = dm.names
         distance_values = dm[transcriptome_hit_to_graft.name]
         sorted_distance_values = sorted(distance_values, key=float)
+
         for distance in sorted_distance_values:
             index = dm[transcriptome_hit_to_graft.name].index(distance)
             name = names[index]
@@ -993,15 +1184,20 @@ def get_graft_alignment(trimmed_dm, trimmed_alignment, transcriptome_hit_to_graf
                 break
         logger.debug(f'Sequence with highest identity to {transcriptome_hit_to_graft.name} is {seq_to_graft_from.name}')
         graft_alignment = MultipleSeqAlignment([transcriptome_hit_to_graft, seq_to_graft_from])
+
         return graft_alignment, seq_to_graft_from.name
+
     else:
         longest_seed_seq = max((seq for seq in trimmed_alignment if re.search('_seed', seq.name)),
-                               key=lambda x: len(x.seq.ungap(gap='-')))
+                               key=lambda x: len(x.seq.replace('-', '')))
         graft_alignment = MultipleSeqAlignment([transcriptome_hit_to_graft, longest_seed_seq])
+
         return graft_alignment, longest_seed_seq.name
 
 
-def write_fasta_and_mafft_align(original_alignment, trimmed_alignment, mafft_threads):
+def write_fasta_and_mafft_align(original_alignment,
+                                trimmed_alignment,
+                                mafft_threads):
     """
     Realign a given alignment using mafft. Overwrites the original alignment (new alignment will be trimmed again).
     """
@@ -1012,12 +1208,16 @@ def write_fasta_and_mafft_align(original_alignment, trimmed_alignment, mafft_thr
             seq = SeqRecord(Seq(seq.seq), id=seq.id, name=seq.name, description=seq.description)
             seqs.append(seq)
         SeqIO.write(seqs, tmp, 'fasta')
+
     mafft_cline = (MafftCommandline(localpair=True, lep=-1.0, thread=mafft_threads,
                                     input=f'{trimmed_alignment}_tmp.fasta'))
     stdout, stderr = mafft_cline()
+
     os.remove(f'{trimmed_alignment}_tmp.fasta')
+
     with open(original_alignment, 'w') as alignment_file:
         alignment_file.write(stdout)
+
     remove_empty_seqs_aln(original_alignment)
 
 
@@ -1026,9 +1226,9 @@ def new_seqs_longer_than_seeds(alignment_object):
     Returns True if the longest of the newly added sequences (i.e. those that do not have the prefix _seed_) is more
     than 1.1x the length of the longest seed sequence.
     """
-    longest_seed = max(len(seq.seq.ungap(gap='-')) for seq in alignment_object if re.search('_seed', seq.name))
+    longest_seed = max(len(seq.seq.replace('-', '')) for seq in alignment_object if re.search('_seed', seq.name))
     try:
-        longest_new_seq = max(len(seq.seq.ungap(gap='-')) for seq in alignment_object if not re.search(
+        longest_new_seq = max(len(seq.seq.replace('-', '')) for seq in alignment_object if not re.search(
             '_seed', seq.name))
         if longest_new_seq > (longest_seed * 1.1):
             return True
@@ -1038,7 +1238,10 @@ def new_seqs_longer_than_seeds(alignment_object):
         return False
 
 
-def graft(alignment_object, grafted_seq_name, grafted_seq_description, gene_name):
+def graft(alignment_object,
+          grafted_seq_name,
+          grafted_seq_description,
+          gene_name):
     """
     Takes an alignment object and grafts the first sequence (i.e. a transcriptome hit) with any additional 5' and 3'
     sequence from the second sequence (i.e a reference sequence). Returns False if there is no additional sequence to
@@ -1062,20 +1265,31 @@ def graft(alignment_object, grafted_seq_name, grafted_seq_description, gene_name
             grafted_seq_3prime.insert(0, position[1])
         else:
             break
+
     grafted_seq_5prime_concat = ''.join(letter for letter in grafted_seq_5prime)
     grafted_seq_3prime_concat = ''.join(letter for letter in grafted_seq_3prime)
-    final_grafted_seq = ''.join([grafted_seq_5prime_concat, str(alignment_object[0].seq.ungap(gap='-')),
+    final_grafted_seq = ''.join([grafted_seq_5prime_concat, str(alignment_object[0].seq.replace('-', '')),
                                  grafted_seq_3prime_concat])
     final_grafted_seq_obj = SeqRecord(Seq(final_grafted_seq), id=gene_name, name=grafted_seq_name,
                                       description=grafted_seq_description)
+
     if not grafted_seq_5prime_concat and not grafted_seq_3prime_concat:
         return False
+
     return final_grafted_seq_obj
 
 
-def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_for_grafting_folder, new_sequence_folder,
-                              length_percentage, counter, lock, num_files_to_process, refs_for_trimmed,
-                              discard_short=False, mafft_threads=1):
+def trim_and_discard_or_graft(alignment,
+                              trimmed_alignment_folder,
+                              alignments_for_grafting_folder,
+                              new_sequence_folder,
+                              length_percentage,
+                              counter,
+                              lock,
+                              num_files_to_process,
+                              refs_for_trimmed,
+                              discard_short=False,
+                              mafft_threads=1):
     """
     Trims alignment to the longest of a given set of original target taxa (seed_Arath, seed_Ambtr or seed_
     Orysa from the 353Angiosperm target file by default, or user provided).
@@ -1115,7 +1329,8 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
                 warning = f'***WARNING*** A newly added sequence is longer than it should be for gene {gene_name}!'
 
         # Get the no-gap length of the longest of the seed sequences for this gene
-        longest_seed_seq = max(len(seq.seq.ungap(gap='-')) for seq in trimmed_alignment if re.search('_seed', seq.name))
+        longest_seed_seq = max(len(seq.seq.replace('-', '')) for seq in trimmed_alignment if re.search('_seed',
+                                                                                                       seq.name))
 
         # calculate a distance matrix for selecting _seed_ to graft with if necessary
         skip_letters = set(letter for sequence in trimmed_alignment for letter in sequence.seq if
@@ -1132,7 +1347,7 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
         trimmed_seqs_to_write = []
         for trimmed_seq in trimmed_alignment:
             if not re.search('_seed', trimmed_seq.name):
-                trimmed_length = len(trimmed_seq.seq.ungap(gap='-'))
+                trimmed_length = len(trimmed_seq.seq.replace('-', ''))
                 length_fraction = trimmed_length / longest_seed_seq
                 if discard_short:
                     if length_fraction < length_percentage:
@@ -1165,7 +1380,8 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
                             final_grafted_seq_obj = new_sequence_to_graft
 
                         # Graft with longest _seed_ sequence, if necessary:
-                        if len(final_grafted_seq_obj.seq.ungap(gap='-')) < longest_seed_seq:  # Not using a ratio here,
+                        if len(final_grafted_seq_obj.seq.replace('-', '')) < longest_seed_seq:  # Not using a ratio
+                            # here,
                             # direct comparison.
                             graft_alignment, longest_seq_to_graft_name = get_graft_alignment(trimmed_dm,
                                                                                              trimmed_alignment,
@@ -1189,7 +1405,7 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
             seqfile_to_write = f'{new_sequence_folder}/{gene_name}.fasta'
             with open(seqfile_to_write, 'w') as seqfile:
                 for sequence in trimmed_seqs_to_write:
-                    sequence.seq = sequence.seq.ungap(gap='-')
+                    sequence.seq = sequence.seq.replace('-', '')
                     transcriptome_id = re.split('-|_', sequence.name)[2]
                     if sequence.description == "grafted sequence closest":
                         grafted_gene_id = ''.join(re.split('_', sequence.name)[-1])
@@ -1206,12 +1422,18 @@ def trim_and_discard_or_graft(alignment, trimmed_alignment_folder, alignments_fo
             counter.value += 1
             print(f'\rFinished trimming and grafting/discarding transcriptome hits for {alignment_name}, '
                   f'{counter.value}/{num_files_to_process}', end='')
+
         return alignment_name, warning
 
 
-def trim_and_discard_or_graft_multiprocessing(alignments_folder, trimmed_alignment_folder,
-                                              alignments_for_grafting_folder, new_sequence_folder, pool_threads,
-                                              mafft_threads, length_percentage, refs_for_trimmed,
+def trim_and_discard_or_graft_multiprocessing(alignments_folder,
+                                              trimmed_alignment_folder,
+                                              alignments_for_grafting_folder,
+                                              new_sequence_folder,
+                                              pool_threads,
+                                              mafft_threads,
+                                              length_percentage,
+                                              refs_for_trimmed,
                                               discard_short=False):
     """
     Run trim_and_discard_or_graft for each alignment via function <trim_and_discard_or_graft> via multiprocessing.
@@ -1230,8 +1452,10 @@ def trim_and_discard_or_graft_multiprocessing(alignments_folder, trimmed_alignme
                                       lock, num_files_to_process=len(alignments), refs_for_trimmed=refs_for_trimmed,
                                       discard_short=discard_short, mafft_threads=mafft_threads)
                           for alignment in alignments]
+
         for future in future_results:
             future.add_done_callback(done_callback)
+
         wait(future_results, return_when="ALL_COMPLETED")
 
         long_seqs_warnings = []
@@ -1245,14 +1469,19 @@ def trim_and_discard_or_graft_multiprocessing(alignments_folder, trimmed_alignme
 
     processed_alignments = [alignment for alignment in glob.glob(f'{trimmed_alignment_folder}/*.trimmed.fasta') if
                             file_exists_and_not_empty(alignment)]
+
     logger.info(f'\n{len(processed_alignments)} alignments processed from {len(future_results)} alignment files.\n')
+
     if len(alignments) != len(processed_alignments):
         sys.exit(f'Only {len(processed_alignments)} alignments were processed from {len(alignments)} genes, check '
                  f'for errors!')
+
     return long_seqs_warnings
 
 
-def create_new_targets_file(gene_fasta_file, seqs_to_add_folder, seqs_to_write_folder):
+def create_new_targets_file(gene_fasta_file,
+                            seqs_to_add_folder,
+                            seqs_to_write_folder):
     """
     Writes a fasta file (not an alignment) of the original target sequences and any sequences to be added.
     """
@@ -1266,16 +1495,19 @@ def create_new_targets_file(gene_fasta_file, seqs_to_add_folder, seqs_to_write_f
         return expected_output_file
     except AssertionError:
         seqs_to_write = []
+
         with open(gene_fasta_file, 'r') as single_gene:
             seqs = SeqIO.parse(single_gene, 'fasta')
             for seq in seqs:
                 seqs_to_write.append(seq)
+
         if os.path.exists(f'{seqs_to_add_folder}/{gene_fasta_file_base}'):
             with open(f'{seqs_to_add_folder}/{gene_fasta_file_base}') as seqs_to_add:
                 seqs = SeqIO.parse(seqs_to_add, 'fasta')
                 for seq in seqs:
                     if seq.id not in [seq.id for seq in seqs_to_write]:
                         seqs_to_write.append(seq)
+
         with open(f'{seqs_to_write_folder}/{gene_fasta_file_base}', 'w') as to_write:
             for seq in seqs_to_write:
                 SeqIO.write(seq, to_write, 'fasta')
@@ -1308,13 +1540,21 @@ def check_frameshifts(sequence):
                 return sequence
             else:
                 frames_with_stop_codons += 1
+
         if frames_with_stop_codons == 2:  # CJJ i.e. both 2nd and 3rd frames have stop codons in them too.
             return None
 
 
-def check_and_correct_reading_frames(single_gene_new_target_file, frameshifts_folder, uncorrected_frameshifts_folder,
-                                     exonerate_results_folder, refs_for_exonerate, counter, lock, num_files_to_process,
-                                     skip_fix_frameshifts_with_exonerate=False, length_percentage=1.00,
+def check_and_correct_reading_frames(single_gene_new_target_file,
+                                     frameshifts_folder,
+                                     uncorrected_frameshifts_folder,
+                                     exonerate_results_folder,
+                                     refs_for_exonerate,
+                                     counter,
+                                     lock,
+                                     num_files_to_process,
+                                     skip_fix_frameshifts_with_exonerate=False,
+                                     length_percentage=1.00,
                                      discard_short=False):
     """
     For a new gene target file, check that each sequence can be translated without stop codons from the first
@@ -1377,17 +1617,22 @@ def check_and_correct_reading_frames(single_gene_new_target_file, frameshifts_fo
             counter.value += 1
             print(f'\rFinished checking and correcting reading frames for gene {gene_name}, '
                   f'{counter.value}/{num_files_to_process}', end='')
+
         if seqs_with_frameshifts_dict[gene_name]:
             return target_file_basename, seqs_with_frameshifts_dict
         else:
             return target_file_basename
 
 
-def check_and_correct_reading_frames_multiprocessing(new_target_sequences_folder, frameshifts_folder,
-                                                     uncorrected_frameshifts_folder, exonerate_results_folder,
-                                                     refs_for_exonerate, pool_threads,
+def check_and_correct_reading_frames_multiprocessing(new_target_sequences_folder,
+                                                     frameshifts_folder,
+                                                     uncorrected_frameshifts_folder,
+                                                     exonerate_results_folder,
+                                                     refs_for_exonerate,
+                                                     pool_threads,
                                                      skip_fix_frameshifts_with_exonerate=False,
-                                                     length_percentage=1.00, discard_short=False):
+                                                     length_percentage=1.00,
+                                                     discard_short=False):
     """
     Run check_and_correct_reading_frames for each new target sequence file via function
     <check_and_correct_reading_frames> via multiprocessing.
@@ -1410,8 +1655,11 @@ def check_and_correct_reading_frames_multiprocessing(new_target_sequences_folder
                                       skip_fix_frameshifts_with_exonerate=skip_fix_frameshifts_with_exonerate,
                                       length_percentage=length_percentage, discard_short=discard_short)
                           for target_file in target_files]
+
         for future in future_results:
+
             future.add_done_callback(done_callback)
+
         wait(future_results, return_when="ALL_COMPLETED")
 
         seqs_with_frameshifts = []
@@ -1425,12 +1673,18 @@ def check_and_correct_reading_frames_multiprocessing(new_target_sequences_folder
 
     processed_target_files = [target_file for target_file in glob.glob(f'{new_target_sequences_folder}/*.fasta') if
                               file_exists_and_not_empty(target_file)]
+
     logger.info(f'\n{len(processed_target_files)} alignments processed from {len(future_results)} alignment files.\n')
     return seqs_with_frameshifts
 
 
-def run_exonerate(seqs_with_frameshifts_dict, refs_for_exonerate, single_gene_new_target_file, gene_name,
-                  gene_exonerate_folder, length_percentage, discard_short):
+def run_exonerate(seqs_with_frameshifts_dict,
+                  refs_for_exonerate,
+                  single_gene_new_target_file,
+                  gene_name,
+                  gene_exonerate_folder,
+                  length_percentage,
+                  discard_short):
     """
     For genes with stop codons in each forwards reading frame, writes files for Exonerate and performs and parses
     Exonerate output. Returns a dictionary of sequences that couldn't be fixed.
@@ -1452,7 +1706,7 @@ def run_exonerate(seqs_with_frameshifts_dict, refs_for_exonerate, single_gene_ne
     createfolder(gene_exonerate_folder)
     frameshift_free_seqs_list = list(SeqIO.parse(single_gene_new_target_file, 'fasta'))
     pattern = re.compile(re_compile_string)
-    ref_names_seqs_and_lengths = [(seq.name, seq, len(seq.seq.ungap(gap='-'))) for seq in
+    ref_names_seqs_and_lengths = [(seq.name, seq, len(seq.seq.replace('-', ''))) for seq in
                                   frameshift_free_seqs_list
                                   if re.match(pattern, seq.name)]
     longest_ref_name = max(ref_names_seqs_and_lengths, key=itemgetter(2))[0]
@@ -1460,16 +1714,21 @@ def run_exonerate(seqs_with_frameshifts_dict, refs_for_exonerate, single_gene_ne
     longest_ref_seq_trans.seq = Seq(re.sub('B|Z|J|U|O', 'X', str(longest_ref_seq_trans.seq)))  # Exonerate doesn't
     # like some extended IUPAC codes
     prot_for_exonerate_name = f'{gene_exonerate_folder}/{gene_name}_{longest_ref_name}_protein.fasta'
+
     with open(prot_for_exonerate_name, 'w') as prot:
         SeqIO.write(longest_ref_seq_trans, prot, 'fasta')
+
     for seq in seqs_with_frameshifts_dict[gene_name]:
         frameshift_seq_for_exonerate_name = f'{gene_exonerate_folder}/{gene_name}_{seq.name}.fasta'
         exonerate_result_file = f'{gene_exonerate_folder}/{gene_name}_{seq.name}.exn'
+
         with open(frameshift_seq_for_exonerate_name, 'w') as frameshift_seq:
             SeqIO.write(seq, frameshift_seq, 'fasta')
+
         exonerate_command = f'exonerate -m protein2genome --revcomp False --showalignment yes ' \
                             f'--showvulgar no -V 0 --refine full {prot_for_exonerate_name} ' \
                             f'{frameshift_seq_for_exonerate_name} > {exonerate_result_file}'
+
         exonerate_command_norefine = f'exonerate -m protein2genome --revcomp False --showalignment yes ' \
                                      f'--showvulgar no -V 0 {prot_for_exonerate_name} ' \
                                      f'{frameshift_seq_for_exonerate_name} > {exonerate_result_file}'
@@ -1482,9 +1741,11 @@ def run_exonerate(seqs_with_frameshifts_dict, refs_for_exonerate, single_gene_ne
                 logger.info(f'\nExonerate produced an error for gene {gene_name}, sequence {seq.name}. Command was: '
                             f'{exonerate_command_norefine}\n')
                 continue
+
         if not file_exists_and_not_empty(exonerate_result_file):
             logger.info(f'\nNo Exonerate results for gene {gene_name}, sequence {seq.name}\n')
             continue
+
         fixed_seq = correct_frameshifts(exonerate_result_file)  # Note that this returns the sequence string only.
         if fixed_seq:
             seqrecord = SeqRecord(Seq(fixed_seq), id=seq.id, name=seq.name, description='corrected_frameshifts')
@@ -1524,6 +1785,7 @@ def run_exonerate(seqs_with_frameshifts_dict, refs_for_exonerate, single_gene_ne
         with open(single_gene_new_target_file, 'w') as target_file_with_fixed_seqs:
             frameshift_free_seqs_list.extend(fixed_seqs)
             SeqIO.write(frameshift_free_seqs_list, target_file_with_fixed_seqs, 'fasta')
+
     return seqs_with_frameshifts_dict
 
 
@@ -1648,22 +1910,28 @@ def correct_frameshifts(exonerate_result_file):
                         ns = 'N' * num_ns_to_insert
                         ns_to_insert_list.append(ns)
                         pass
+
                 for key, value in hsp_seq_dict.items():
                     left_slice_coordinate = hsp_seq_slices_dict[key][0]
                     right_slice_coordinate = hsp_seq_slices_dict[key][1]
                     hsp_seq_dict[key] = hsp_seq_dict[key][left_slice_coordinate:right_slice_coordinate]
+
                 zip_seqs_and_ns = [item for item in
                                    itertools.zip_longest(hsp_seq_dict.values(), ns_to_insert_list, fillvalue='')]
                 zip_seqs_and_ns_flattened = list(itertools.chain(*zip_seqs_and_ns))
                 concatenated_seq = ''.join(zip_seqs_and_ns_flattened)
                 num_stop_codons = pad_seq(Seq(concatenated_seq)).translate().count('*')
+
                 if num_stop_codons != 0:
                     logger.debug(f"Couldn't fix frameshifts for {hit_name}, skipping\n")
                     return
+
                 return concatenated_seq
 
 
-def graft_exonerate_hit(fixed_seq, longest_ref, output_folder):
+def graft_exonerate_hit(fixed_seq,
+                        longest_ref,
+                        output_folder):
     """
     If a sequence with frameshifts is fixed using Exonerate, and the resulting sequence is shorter than the longest
     reference sequence, graft with any additional 5' and 3' sequence from the reference sequence. Returns None if a
@@ -1698,7 +1966,8 @@ def graft_exonerate_hit(fixed_seq, longest_ref, output_folder):
         return None
 
 
-def grouped(iterable, n):
+def grouped(iterable,
+            n):
     """s -> (s0,s1,s2,...sn-1), (sn,sn+1,sn+2,...s2n-1), (s2n,s2n+1,s2n+2,...s3n-1), ...
     Used in the function correct_frameshifts.
     """
@@ -1714,7 +1983,8 @@ def pairwise(iterable):  # CJJ
     return zip(a, b)
 
 
-def create_mega_target_file(final_seqs_folder, outfolder):
+def create_mega_target_file(final_seqs_folder,
+                            outfolder):
     """
     Writes a new target file by concatenating the single gene fasta files.
     """
@@ -1729,8 +1999,14 @@ def create_mega_target_file(final_seqs_folder, outfolder):
     return megatarget_file
 
 
-def megatarget_single_gene_alignments(final_seqs_file, output_folder, warnings_folder, collated_warnings, counter, lock,
-                                      num_files_to_process, mafft_threads=2):
+def megatarget_single_gene_alignments(final_seqs_file,
+                                      output_folder,
+                                      warnings_folder,
+                                      collated_warnings,
+                                      counter,
+                                      lock,
+                                      num_files_to_process,
+                                      mafft_threads=2):
     """
     Create single genes alignments from fasta files.
     """
@@ -1757,8 +2033,12 @@ def megatarget_single_gene_alignments(final_seqs_file, output_folder, warnings_f
         return expected_alignment_file
 
 
-def megatarget_single_gene_alignments_multiprocessing(final_seqs_folder, output_folder, warnings_folder,
-                                                      collated_warnings, mafft_threads=2, pool_threads=1):
+def megatarget_single_gene_alignments_multiprocessing(final_seqs_folder,
+                                                      output_folder,
+                                                      warnings_folder,
+                                                      collated_warnings,
+                                                      mafft_threads=2,
+                                                      pool_threads=1):
     """
     Generate alignments via function <megatarget_single_gene_alignments> using multiprocessing.
     """
@@ -1786,8 +2066,13 @@ def megatarget_single_gene_alignments_multiprocessing(final_seqs_folder, output_
                  f'for errors!')
 
 
-def write_report(original_targetfile, transcriptome_folder, new_targetfile_folder, reports_folder,
-                 long_seqs_warnings, seqs_with_frameshifts, seqs_with_ns):
+def write_report(original_targetfile,
+                 transcriptome_folder,
+                 new_targetfile_folder,
+                 reports_folder,
+                 long_seqs_warnings,
+                 seqs_with_frameshifts,
+                 seqs_with_ns):
     """
     Writes a report (printing to screen and logging to file) containing stats and warnings.
     """
@@ -1805,6 +2090,7 @@ def write_report(original_targetfile, transcriptome_folder, new_targetfile_folde
         for sequence in seqs:
             original_num_seqs += 1
             gene_names.add(sequence.name.split('-')[-1])
+
     gene_names_sorted = sorted(name for name in gene_names)
 
     # Recover number and names of transcriptome sequences added
@@ -1822,6 +2108,7 @@ def write_report(original_targetfile, transcriptome_folder, new_targetfile_folde
     # Get stats and write 'report_per_gene.csv' file
     summary_report = [['', 'Num_seqs_added', 'Num_seqs_grafted']]
     per_gene_report_final = []
+
     for transcriptome_name, gene_names in transcriptome_seqs_added.items():
         per_transcriptome_report = [transcriptome_name]
         for gene in gene_names_sorted:
@@ -1956,37 +2243,77 @@ def write_report(original_targetfile, transcriptome_folder, new_targetfile_folde
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('target_file', type=str, help='target fasta file containing nucleotide sequences named '
-                                                      'following the convention e.g. >AJFN-4471')
-    parser.add_argument('transcriptomes_folder', type=str, help='Folder containing transcriptome files. These can '
-                                                                'optionally be zipped in .zip, .gz or .bz2 format')
-    parser.add_argument("-num_hits_to_recover", type=int, help='Number of HMM hits to recover from each transcriptome, '
-                                                               'default is 1', default='1', metavar='<integer>')
-    parser.add_argument("-python_threads", type=int, help='number of threads for multiprocessing pools, default is 1',
-                        default='1', metavar='<integer>')
-    parser.add_argument("-external_program_threads", type=int, help='number of threads for HMMer, mafft, default is '
-                                                                    '1', default='1', metavar='<integer>')
-    parser.add_argument("-length_percentage", type=float, help='length percentage cut-off for grafting or discarding, '
-                                                               'default is 1.00', default='1.00', metavar='<float>')
-    parser.add_argument("-hmmsearch_evalue", type=str, help='Evalue threshold for searching transcriptomes with HMM'
-                                                            'profiles, default is 1e-50', default='1e-50',
-                        metavar='<number in scientific notation; default is 1e-50>')
-    parser.add_argument("-trim_to_refs", action='append', type=str, dest='refs_for_manual_trimming',
+
+    parser.add_argument('--version', '-v',
+                        dest='version',
+                        action='version',
+                        version='%(prog)s 1.0.1',
+                        help='Print the BYO_transcriptome.py version number.')
+    parser.add_argument('target_file',
+                        type=str,
+                        help='target fasta file containing nucleotide sequences named following the convention e.g. '
+                             '>AJFN-4471')
+    parser.add_argument('transcriptomes_folder',
+                        type=str,
+                        help='Folder containing transcriptome files. These can optionally be zipped in .zip, '
+                             '.gz or .bz2 format')
+    parser.add_argument("-num_hits_to_recover",
+                        type=int,
+                        default='1',
+                        metavar='<integer>',
+                        help='Number of HMM hits to recover from each transcriptome, default is %(default)d')
+    parser.add_argument("-python_threads",
+                        type=int,
+                        default='1',
+                        metavar='<integer>',
+                        help='number of threads for multiprocessing pools, default is 1')
+    parser.add_argument("-external_program_threads",
+                        type=int,
+                        default='1',
+                        metavar='<integer>',
+                        help='number of threads for HMMer, mafft, default is 1')
+    parser.add_argument("-length_percentage",
+                        type=float,
+                        default='1.00',
+                        metavar='<float>',
+                        help='length percentage cut-off for grafting or discarding, default is 1.00')
+    parser.add_argument("-hmmsearch_evalue",
+                        type=str,
+                        default='1e-50',
+                        metavar='<number in scientific notation; default is 1e-50>',
+                        help='Evalue threshold for searching transcriptomes with HMM profiles, default is 1e-50')
+    parser.add_argument("-trim_to_refs",
+                        action='append',
+                        type=str,
+                        dest='refs_for_manual_trimming',
+                        metavar='<taxon_name>',
                         help='Name corresponding to a taxon present in target file, used for trimming and correcting '
-                             'frameshifts in transcriptome hits', metavar='<taxon_name>')
-    parser.add_argument("-no_n", dest="no_n", action='store_true', help="Remove n characters from transcriptomes hits",
+                             'frameshifts in transcriptome hits')
+    parser.add_argument("-no_n",
+                        dest="no_n",
+                        action='store_true',
+                        help="Remove n characters from transcriptomes hits",
                         default=False)
-    parser.add_argument("-skip_exonerate_frameshift_fix", dest="no_exonerate_fix", action='store_true',
-                        help="Do not use Exonerate to fix frameshifts; discard such sequences instead", default=False)
-    # parser.add_argument("-graft_closest", dest="graft_closest", action='store_true',
+    parser.add_argument("-skip_exonerate_frameshift_fix",
+                        dest="no_exonerate_fix",
+                        action='store_true',
+                        default=False,
+                        help="Do not use Exonerate to fix frameshifts; discard such sequences instead")
+    # parser.add_argument("-graft_closest",
+    #                     dest="graft_closest",
+    #                     action='store_true',
     #                     help="If grafting transcriptome hits beneath the -length_percentage value (default), graft "
     #                          "with the highest identity original target file sequence rather than the longest original "
-    #                          "sequence", default=False)
-    parser.add_argument("-discard_short", dest="discard_short", action='store_true',
-                        help="Discard transcriptome hits beneath the -length_percentage value rather than grafting",
-                        default=False)
-    # parser.print_help()
+    #                          "sequence",
+    #                     default=False)
+    parser.add_argument("-discard_short",
+                        dest="discard_short",
+                        action='store_true',
+                        default=False,
+                        help="Discard transcriptome hits beneath the -length_percentage value rather than grafting")
+
     results = parser.parse_args()
+
     return results
 
 
@@ -1996,6 +2323,9 @@ def parse_arguments():
 def main():
     results = parse_arguments()
 
+    cwd = os.getcwd()
+
+    folder_00 = cwd + '/00_transcriptomes_renamed'
     folder_01 = cwd + '/01_target_gene_fasta_files'
     folder_02 = cwd + '/02_target_gene_alignment'
     folder_03 = cwd + '/03_target_gene_hmms'
@@ -2027,7 +2357,8 @@ def main():
 
     check_files_for_processing(results.target_file,
                                results.transcriptomes_folder,
-                               results.refs_for_manual_trimming)
+                               results.refs_for_manual_trimming,
+                               renamed_transcriptome_folder=folder_00)
 
     split_targets(results.target_file,
                   output_folder=folder_01)
@@ -2044,8 +2375,9 @@ def main():
                                        hmmbuild_threads=results.external_program_threads)
 
     hmm_vs_transcriptome_multiprocessing(hmmprofile_folder=folder_03,
-                                         transcriptomes_folder=results.transcriptomes_folder,
-                                         hits_output_folder=folder_04, hmm_logs_output_folder=folder_05,
+                                         transcriptomes_folder=folder_00,
+                                         hits_output_folder=folder_04,
+                                         hmm_logs_output_folder=folder_05,
                                          num_hits_to_recover=results.num_hits_to_recover,
                                          pool_threads=results.python_threads,
                                          hmmsearch_threads=results.external_program_threads,
@@ -2099,7 +2431,7 @@ def main():
                                                       pool_threads=results.python_threads)
 
     write_report(results.target_file,
-                 transcriptome_folder=results.transcriptomes_folder,
+                 transcriptome_folder=folder_00,
                  new_targetfile_folder=folder_17,
                  reports_folder=folder_18,
                  long_seqs_warnings=long_seqs_warnings,
